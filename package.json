@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24.0.0"
+    "node": "24.x"
   },
   "scripts": {
     "build": "node build.mjs",
     "start": "node build.mjs && node scripts/local-server.mjs",
-    "test": "node tests/three-team.mjs && node tests/artwork.mjs"
+    "test": "node scripts/build-vercel.mjs && node tests/three-team.mjs && node tests/artwork.mjs && node tests/vercel-supabase.mjs",
+    "build:vercel": "node scripts/build-vercel.mjs",
+    "admin:credentials": "node scripts/admin-credentials.mjs"
   }
 }

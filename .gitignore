@@ -6,3 +6,5 @@ node_modules/
 *.sqlite
 *.sqlite-*
 .DS_Store
+public/
+.vercel/

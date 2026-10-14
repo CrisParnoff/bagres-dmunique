@@ -1,4 +1,8 @@
-# FC BAGRES — projeto completo para uso local
+# FC BAGRES — Vercel + Supabase
+
+O repositório está adaptado para publicar uma cópia independente na Vercel, com banco PostgreSQL e fotos no Supabase. **O site atual da OpenAI permanece separado e não é alterado por estes commits.**
+
+Veja o [guia de deploy](docs/VERCEL-SUPABASE.md) para configurar o novo projeto.
 
 ## Como abrir
 
@@ -46,10 +50,15 @@ O servidor escuta apenas no próprio computador. Hospedar para outras pessoas ex
 
 Referência técnica da execução local: https://nodejs.org/download/release/latest-v24.x/docs/api/sqlite.html
 
-## Versão atual e Railway
+## Hospedagem e dados
 
-Este código corresponde à versão 48 do site, incluindo as rodadas de três times, Stats, conquistas, mensalistas, mascote e geração de artes com fotos originais. Execute `npm test` para verificar as regras da aplicação.
+A base funcional veio da versão 48 do Sites. As adaptações para Vercel + Supabase estão apenas neste repositório. O banco D1, as fotos R2 e os segredos do site original não foram exportados. A cópia na Vercel inicia sem o histórico de produção até que façamos essa migração.
 
-A migração para Railway ainda não foi implementada. Será necessário exportar o banco D1 e as fotos R2 de produção, adaptar os recursos DB/BUCKET ao banco e armazenamento escolhidos, configurar os segredos de administração e servir na interface e porta exigidas pelo Railway. O servidor incluído é para execução local.
+- `npm run build:vercel`: gera os arquivos estáticos em `public/` e compila o backend.
+- `npm test`: compila e verifica as regras e a integração com Supabase usando respostas simuladas.
+- `npm run admin:credentials`: gera as credenciais do servidor a partir de uma senha informada com entrada oculta.
+- `api/[...path].js`: função Node.js da Vercel para as rotas existentes.
+- `server/supabase.mjs`: persistência PostgreSQL e fotos via APIs do Supabase.
+- `supabase/migrations/0001_bagres.sql`: tabelas, permissões, salvamento atômico e bucket privado.
 
-A hospedagem atual permanece no Sites: https://fcbagres.gabrielparnoff.chatgpt.site/
+O login permanece por senha de administração com sessão assinada; esta primeira adaptação não substitui o login por Supabase Auth. A chave `service_role` só é usada no servidor. A execução local padrão continua usando SQLite e fotos locais.
