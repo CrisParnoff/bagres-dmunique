@@ -1,0 +1,14 @@
+{
+  "name": "fc-bagres",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && node scripts/local-server.mjs",
+    "test": "node tests/three-team.mjs && node tests/artwork.mjs"
+  }
+}
