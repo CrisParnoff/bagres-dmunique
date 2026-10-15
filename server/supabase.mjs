@@ -83,5 +83,6 @@ export function createSupabaseEnv(config = process.env, fetcher = fetch) {
       await call(`/storage/v1/object/${encodeURIComponent(bucket)}`, {method:'DELETE',headers:jsonHeaders,body:JSON.stringify({prefixes:[key]})});
     }
   };
-  return {DB,BUCKET,ADMIN_PASSWORD_HASH:config.ADMIN_PASSWORD_HASH,ADMIN_SESSION_KEY:config.ADMIN_SESSION_KEY};
+  // EXTERNAL_FETCH: chamadas a serviços de fora (Gemini, planilha do caixa).
+  return {DB,BUCKET,ADMIN_PASSWORD_HASH:config.ADMIN_PASSWORD_HASH,ADMIN_SESSION_KEY:config.ADMIN_SESSION_KEY,EXTERNAL_FETCH:fetcher};
 }

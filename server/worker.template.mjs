@@ -168,6 +168,229 @@ function publicState(state) {
   };
 }
 
+
+// ---------- Configuração privada (IA dos times) ----------
+// A chave do Gemini e o prompt da diretoria ficam em aiSettings dentro do
+// estado salvo, mas nunca saem do servidor: GET /api/state remove o campo e
+// PUT /api/state mantém o que já estava salvo, ignorando o que o navegador mandar.
+const AI_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"];
+const AI_PROMPT_LIMIT = 8000;
+const AI_TIME_BUDGET = 50000;
+const KIT_COLORS = { A: "vermelho", B: "branco", C: "preto" };
+const externalFetch = env => env.EXTERNAL_FETCH || fetch;
+
+function withoutPrivate(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return state;
+  const { aiSettings, ...rest } = state;
+  return rest;
+}
+
+const aiSettingsView = settings => ({
+  prompt: typeof settings?.prompt === "string" ? settings.prompt : "",
+  hasKey: Boolean(settings?.key),
+  keyHint: settings?.key ? settings.key.slice(-4) : "",
+  updatedAt: settings?.updatedAt || null
+});
+
+async function saveAiSettings(env, update) {
+  const current = await getState(env);
+  const previous = current.state?.aiSettings || {};
+  const aiSettings = { prompt: update.prompt ?? previous.prompt ?? "", key: update.key ?? previous.key ?? "", updatedAt: new Date().toISOString() };
+  const data = JSON.stringify({ ...withoutPrivate(current.state), aiSettings });
+  if (current.version === 0) {
+    const result = await env.DB.prepare("INSERT OR IGNORE INTO site_state (id, data, version) VALUES (1, ?, 1)").bind(data).run();
+    return result.meta.changes ? { version: 1, settings: aiSettings } : null;
+  }
+  const result = await env.DB.prepare("UPDATE site_state SET data = ?, version = version + 1 WHERE id = 1 AND version = ?").bind(data, current.version).run();
+  return result.meta.changes ? { version: current.version + 1, settings: aiSettings } : null;
+}
+
+function validBalanceRequest(body) {
+  const id = value => typeof value === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(value);
+  if (!body || !Array.isArray(body.teams) || ![2, 3].includes(body.teams.length) || !body.teams.every((key, index) => key === "ABC"[index])) return false;
+  if (!body.names || typeof body.names !== "object" || !body.teams.every(key => typeof body.names[key] === "string" && body.names[key].trim() && body.names[key].length <= 30)) return false;
+  if (!Array.isArray(body.players) || body.players.length < body.teams.length || body.players.length > 60) return false;
+  const ids = new Set();
+  for (const player of body.players) {
+    if (!player || !id(player.id) || ids.has(player.id) || typeof player.name !== "string" || !player.name.trim() || player.name.length > 60) return false;
+    if (!Number.isInteger(player.rating) || player.rating < 1 || player.rating > 5 || typeof player.keeper !== "boolean") return false;
+    ids.add(player.id);
+  }
+  return body.players.filter(player => player.keeper).length <= body.teams.length;
+}
+
+const BALANCE_RULES = `Você monta os times da pelada semanal do FC Bagres D'Munique.
+Regras obrigatórias, que valem acima de qualquer orientação:
+1. Use todos os jogadores da lista, cada um em exatamente um time, identificados pelo código (J1, J2...).
+2. Os times têm a mesma quantidade de jogadores ou diferença de no máximo um.
+3. No máximo um goleiro fixo por time; havendo goleiros fixos, espalhe um por time.
+4. O nível vai de 1 (mais fraco) a 5 (mais forte). A força dos times deve ficar o mais parecida possível; a soma dos níveis dos jogadores de linha é a referência principal.
+Siga as orientações da diretoria (características dos jogadores, quem joga bem junto, quem não deve ficar no mesmo time) sempre que não quebrarem as regras.
+Responda somente com o JSON pedido. Em "explanation", explique em português, em até três frases curtas, o critério usado.`;
+
+function balancePrompt(body, guidance, feedback) {
+  return [
+    "Orientações da diretoria:",
+    guidance?.trim() || "(nenhuma orientação extra)",
+    "",
+    `Times (${body.teams.length}):`,
+    ...body.teams.map(key => `${key} = ${body.names[key]} (camisa ${KIT_COLORS[key]})`),
+    "",
+    `Jogadores confirmados (${body.players.length}):`,
+    ...body.players.map((player, index) => `J${index + 1} | ${player.name} | nível ${player.rating} | ${player.keeper ? "goleiro fixo" : "linha"}`),
+    ...(feedback ? ["", `Sua resposta anterior foi recusada porque ${feedback} Corrija e responda de novo.`] : [])
+  ].join("\n");
+}
+
+const balanceSchema = teams => ({
+  type: "OBJECT",
+  properties: {
+    teams: { type: "ARRAY", items: { type: "OBJECT", properties: { team: { type: "STRING", enum: teams }, players: { type: "ARRAY", items: { type: "STRING" } } }, required: ["team", "players"] } },
+    explanation: { type: "STRING" }
+  },
+  required: ["teams", "explanation"]
+});
+
+// Confere a resposta da IA com as mesmas regras da escalação; nada é aplicado sem passar aqui.
+function readBalance(text, body) {
+  let parsed = null;
+  try { parsed = JSON.parse(text); }
+  catch (_) { try { parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || ""); } catch (_) { return { problem: "a resposta não era JSON." }; } }
+  const codes = new Map(body.players.map((player, index) => [`J${index + 1}`, player]));
+  const teams = Object.fromEntries(body.teams.map(key => [key, []]));
+  const seen = new Set();
+  for (const entry of Array.isArray(parsed?.teams) ? parsed.teams : []) {
+    const key = String(entry?.team || "").trim().toUpperCase();
+    if (!teams[key]) return { problem: `o time "${key}" não existe.` };
+    for (const raw of Array.isArray(entry.players) ? entry.players : []) {
+      const number = String(raw).trim().toUpperCase().match(/^J?\s*(\d+)/)?.[1];
+      const player = number && codes.get(`J${Number(number)}`);
+      if (!player) return { problem: `o código "${String(raw).slice(0, 20)}" não está na lista.` };
+      if (seen.has(player.id)) return { problem: `${player.name} apareceu em mais de um time.` };
+      seen.add(player.id);
+      teams[key].push(player.id);
+    }
+  }
+  const missing = body.players.filter(player => !seen.has(player.id));
+  if (missing.length) return { problem: `faltaram jogadores: ${missing.map(player => player.name).join(", ")}.` };
+  const sizes = body.teams.map(key => teams[key].length);
+  if (Math.min(...sizes) === 0 || Math.max(...sizes) - Math.min(...sizes) > 1) return { problem: `os times ficaram com ${sizes.join(", ")} jogadores, e a diferença máxima é um.` };
+  const keepers = new Set(body.players.filter(player => player.keeper).map(player => player.id));
+  if (body.teams.some(key => teams[key].filter(playerId => keepers.has(playerId)).length > 1)) return { problem: "um time ficou com mais de um goleiro fixo." };
+  return { teams, explanation: typeof parsed?.explanation === "string" ? parsed.explanation.trim().slice(0, 600) : "" };
+}
+
+function geminiFailure(status, detail) {
+  if (status === 429 || status === 402 || /RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(detail)) return "quota";
+  if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|API key expired|PERMISSION_DENIED|leaked/i.test(detail)) return "invalid_key";
+  if (status >= 500) return "unavailable";
+  return "bad_request";
+}
+
+async function askGemini(env, key, system, prompt, schema, deadline) {
+  let modelMissing = false;
+  for (const model of AI_MODELS) {
+    const remaining = deadline - Date.now();
+    if (remaining < 5000) break;
+    let response;
+    try {
+      response = await externalFetch(env)(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4, responseMimeType: "application/json", ...(schema ? { responseSchema: schema } : {}) }
+        }),
+        signal: AbortSignal.timeout(Math.min(remaining, 40000))
+      });
+    } catch (_) { return { failure: "unavailable" }; }
+    // Modelo desativado pelo Google: tenta o próximo da lista.
+    if (response.status === 404) { modelMissing = true; continue; }
+    if (!response.ok) {
+      const failure = geminiFailure(response.status, await response.text().catch(() => ""));
+      // Se o formato pedido for recusado, tenta uma vez sem o esquema (o JSON continua sendo conferido).
+      if (failure === "bad_request" && schema) return askGemini(env, key, system, prompt, null, deadline);
+      return { failure };
+    }
+    const data = await response.json().catch(() => null);
+    const text = (data?.candidates?.[0]?.content?.parts || []).filter(part => !part.thought && typeof part.text === "string").map(part => part.text).join("");
+    if (!text) return { failure: data?.promptFeedback?.blockReason ? "blocked" : "bad_output" };
+    return { text, model };
+  }
+  return { failure: modelMissing ? "model" : "unavailable" };
+}
+
+const AI_FAILURES = {
+  no_key: [409, "Nenhuma chave Gemini configurada. Salve a chave na engrenagem da tela Partida."],
+  quota: [429, "A chave Gemini atingiu o limite de uso."],
+  invalid_key: [422, "A chave Gemini foi recusada pelo Google."],
+  model: [502, "Os modelos do Gemini configurados no site não estão mais disponíveis."],
+  blocked: [502, "O Gemini recusou responder com essas orientações."],
+  bad_output: [502, "A IA devolveu times que não seguem as regras. Tente de novo."],
+  bad_request: [502, "O Gemini não aceitou o pedido."],
+  unavailable: [503, "O Gemini não respondeu agora. Tente de novo em instantes."]
+};
+const aiFailure = code => json({ error: AI_FAILURES[code][1], code }, AI_FAILURES[code][0]);
+
+// ---------- Transparência: leitura da planilha pública do caixa ----------
+const TRANSPARENCY_SHEET = "1f7Yl7GMFzMXkkiRVyEiRkj_i10psEHs2MN0T9XL8YlA";
+const plain = value => String(value ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (quoted) {
+      if (char === '"' && text[index + 1] === '"') { field += '"'; index++; }
+      else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") { row.push(field); field = ""; }
+    else if (char === "\n" || char === "\r") {
+      if (char === "\r" && text[index + 1] === "\n") index++;
+      row.push(field); rows.push(row); row = []; field = "";
+    } else field += char;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function sheetMoney(value) {
+  const text = String(value ?? "").replace(/[\s ]/g, "");
+  if (!/\d/.test(text)) return null;
+  const number = Number(text.replace(/[^\d,.]/g, "").replace(/\./g, "").replace(",", "."));
+  if (!Number.isFinite(number)) return null;
+  return Math.round((text.includes("-") || /^\(.*\)$/.test(text) ? -number : number) * 100) / 100;
+}
+
+function sheetDate(value) {
+  const match = String(value ?? "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (!match) return null;
+  return `${match[3].length === 2 ? `20${match[3]}` : match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+}
+
+function readLedger(csv) {
+  const rows = parseCsv(csv);
+  let balance = null, header = -1;
+  rows.forEach((cells, index) => {
+    const caixa = cells.findIndex(cell => plain(cell).startsWith("caixa"));
+    if (balance === null && caixa >= 0) balance = cells.slice(caixa + 1).map(sheetMoney).find(value => value !== null) ?? null;
+    if (header < 0 && cells.some(cell => plain(cell).startsWith("data")) && cells.some(cell => plain(cell).startsWith("valor"))) header = index;
+  });
+  if (header < 0) return null;
+  const columns = rows[header].map(plain);
+  const column = name => columns.findIndex(cell => cell.startsWith(name));
+  const at = { date: column("data"), description: column("descri"), category: column("categ"), type: column("tipo"), value: column("valor") };
+  const cell = (cells, key) => at[key] >= 0 ? String(cells[at[key]] ?? "").trim().slice(0, 120) : "";
+  const entries = rows.slice(header + 1)
+    .map(cells => ({ date: sheetDate(cells[at.date]), description: cell(cells, "description"), category: cell(cells, "category"), type: cell(cells, "type"), value: sheetMoney(cells[at.value]) }))
+    .filter(entry => entry.date && entry.value !== null);
+  const total = Math.round(entries.reduce((sum, entry) => sum + entry.value, 0) * 100) / 100;
+  return { balance: balance ?? total, entries: entries.slice(-1000) };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -230,20 +453,91 @@ export default {
       response.headers.set("Set-Cookie", "fut_admin=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0");
       return response;
     }
+    if (request.method === "GET" && url.pathname === "/api/transparency") {
+      try {
+        const response = await externalFetch(env)(`https://docs.google.com/spreadsheets/d/${TRANSPARENCY_SHEET}/export?format=csv`, { redirect: "follow", signal: AbortSignal.timeout(12000) });
+        if (!response.ok) throw new Error(`Sheet request failed (${response.status})`);
+        const text = await response.text();
+        if (text.length > 2000000) throw new Error("Sheet too large");
+        const ledger = readLedger(text);
+        if (!ledger) return json({ error: "A planilha mudou de formato e não foi possível ler os lançamentos." }, 502);
+        return new Response(JSON.stringify({ ...ledger, fetchedAt: new Date().toISOString() }), { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=600", "X-Content-Type-Options": "nosniff" } });
+      } catch (error) {
+        console.error("Transparency sheet failed", error.message);
+        return json({ error: "Não foi possível ler a planilha agora." }, 503);
+      }
+    }
+    if (url.pathname === "/api/ai/settings") {
+      if (!await isAdmin(request, env)) return json({ error: "Acesso de admin necessário" }, 403);
+      if (!env.DB) return json({ error: "Armazenamento indisponível" }, 503);
+      try {
+        if (request.method === "GET") return json(aiSettingsView((await getState(env)).state?.aiSettings));
+        if (request.method !== "PUT") return json({ error: "Método não permitido" }, 405);
+        if (!sameOrigin(request, url) || !request.headers.get("Content-Type")?.startsWith("application/json")) return json({ error: "Requisição inválida" }, 403);
+        const body = await request.json();
+        const update = {};
+        if (body.prompt != null) {
+          if (typeof body.prompt !== "string" || body.prompt.length > AI_PROMPT_LIMIT) return json({ error: `O prompt pode ter até ${AI_PROMPT_LIMIT} caracteres.` }, 400);
+          update.prompt = body.prompt;
+        }
+        if (typeof body.key === "string" && body.key.trim()) {
+          const key = body.key.trim();
+          if (!/^[A-Za-z0-9._-]{20,200}$/.test(key)) return json({ error: "Isso não parece uma chave do Gemini. Copie a chave inteira, sem espaços." }, 400);
+          update.key = key;
+        }
+        if (body.removeKey === true) update.key = "";
+        const saved = await saveAiSettings(env, update);
+        if (!saved) return json({ error: "Os dados mudaram em outro dispositivo. Recarregue a página." }, 409);
+        return json({ version: saved.version, ...aiSettingsView(saved.settings) });
+      } catch (error) {
+        console.error("AI settings request failed", error.message);
+        return json({ error: "Não foi possível acessar a configuração da IA." }, 503);
+      }
+    }
+    if (url.pathname === "/api/ai/balance") {
+      if (request.method !== "POST") return json({ error: "Método não permitido" }, 405);
+      if (!await isAdmin(request, env)) return json({ error: "Acesso de admin necessário" }, 403);
+      if (!sameOrigin(request, url) || !request.headers.get("Content-Type")?.startsWith("application/json")) return json({ error: "Requisição inválida" }, 403);
+      if (!env.DB) return json({ error: "Armazenamento indisponível" }, 503);
+      try {
+        const body = await request.json();
+        if (!validBalanceRequest(body)) return json({ error: "Dados da escalação inválidos." }, 400);
+        const settings = (await getState(env)).state?.aiSettings;
+        if (!settings?.key) return aiFailure("no_key");
+        const deadline = Date.now() + AI_TIME_BUDGET;
+        let feedback = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const answer = await askGemini(env, settings.key, BALANCE_RULES, balancePrompt(body, settings.prompt, feedback), balanceSchema(body.teams), deadline);
+          if (answer.failure) return aiFailure(answer.failure);
+          const result = readBalance(answer.text, body);
+          if (!result.problem) return json({ teams: result.teams, explanation: result.explanation, model: answer.model });
+          feedback = result.problem;
+          if (deadline - Date.now() < 15000) break;
+        }
+        return aiFailure("bad_output");
+      } catch (error) {
+        console.error("AI balance failed", error.message);
+        return aiFailure("unavailable");
+      }
+    }
     if (url.pathname === "/api/state") {
       if (!env.DB) return json({ error: "Armazenamento indisponível" }, 503);
       try {
         if (request.method === "GET") {
           const result = await getState(env);
-          return json({ ...result, state: await isAdmin(request, env) ? result.state : publicState(result.state) });
+          const state = withoutPrivate(result.state);
+          return json({ ...result, state: await isAdmin(request, env) ? state : publicState(state) });
         }
         if (request.method !== "PUT") return json({ error: "Método não permitido" }, 405);
         if (!await isAdmin(request, env)) return json({ error: "Acesso de admin necessário" }, 403);
         if (!sameOrigin(request, url) || !request.headers.get("Content-Type")?.startsWith("application/json")) return json({ error: "Requisição inválida" }, 403);
         if (Number(request.headers.get("Content-Length") || 0) > 1000000) return json({ error: "Dados muito grandes" }, 413);
         const body = await request.json();
-        if (!Number.isInteger(body.expectedVersion) || body.expectedVersion < 0 || !validState(body.state)) return json({ error: "Dados inválidos" }, 400);
-        const data = JSON.stringify(body.state);
+        const incoming = withoutPrivate(body.state);
+        if (!Number.isInteger(body.expectedVersion) || body.expectedVersion < 0 || !validState(incoming)) return json({ error: "Dados inválidos" }, 400);
+        // A configuração da IA não vem do navegador: preserva a que já está salva.
+        const aiSettings = body.expectedVersion > 0 ? (await getState(env)).state?.aiSettings : null;
+        const data = JSON.stringify(aiSettings ? { ...incoming, aiSettings } : incoming);
         if (data.length > 1000000) return json({ error: "Dados muito grandes" }, 413);
         if (body.expectedVersion === 0) {
           const result = await env.DB.prepare("INSERT OR IGNORE INTO site_state (id, data, version) VALUES (1, ?, 1)").bind(data).run();

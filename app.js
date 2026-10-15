@@ -111,6 +111,9 @@ async function toggleAdmin() {
     $("#accessNote").textContent = "Modo de visualização. Entre como admin para editar jogadores e resultados.";
     $("#statsForm").classList.add("hidden");
     $("#passwordForm").classList.add("hidden");
+    closeDialog($("#aiSettingsDialog"));
+    closeDialog($("#aiAlertDialog"));
+    setAiNote("");
     await loadRemote();
     return;
   }
@@ -158,6 +161,7 @@ async function deletePlayerPhoto(id, photoKey) {
 function setTab(tabId) {
   if (tabId === "jogadores" && !adminMode) tabId = "inicio";
   if (tabId === "inicio") renderHome();
+  if (tabId === "transparencia") loadCashLedger();
   $$(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.tab === tabId));
   $$(".view").forEach(view => view.classList.toggle("active", view.id === tabId));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1067,6 +1071,151 @@ function autoBalance() {
   showToast("Times equilibrados automaticamente");
 }
 
+// ---------- IA dos times (Gemini) ----------
+// A chave e o prompt ficam só no servidor; o navegador manda a lista de
+// confirmados e recebe os times, que são conferidos de novo antes de aplicar.
+let aiBusy = false;
+const AI_PROBLEMS = {
+  quota: ["Limite do Gemini atingido", "A chave Gemini usada para montar os times chegou ao limite de uso. Um admin precisa trocar a chave na engrenagem desta tela. Enquanto isso, use “Equilibrar times”.", "Trocar chave"],
+  invalid_key: ["Chave Gemini recusada", "O Google não aceitou a chave salva. Confira se ela foi copiada inteira, ou gere uma nova e salve na engrenagem desta tela.", "Trocar chave"],
+  no_key: ["Falta configurar a IA", "Antes de montar os times com IA, um admin precisa salvar a chave Gemini e o prompt da diretoria na engrenagem desta tela.", "Configurar"],
+  model: ["Modelo do Gemini indisponível", "O Google desativou os modelos que o site usa. É preciso atualizar o site; até lá, use “Equilibrar times”.", ""]
+};
+
+function openDialog(dialog) {
+  if (typeof dialog.showModal === "function") { if (!dialog.open) dialog.showModal(); }
+  else dialog.setAttribute("open", "");
+}
+function closeDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+function showAiProblem(code, message) {
+  const problem = AI_PROBLEMS[code];
+  if (!problem) { showToast(message || "Não foi possível montar os times com IA agora."); return; }
+  const [title, text, action] = problem;
+  $("#aiAlertTitle").textContent = title;
+  $("#aiAlertMessage").textContent = text;
+  $("#aiAlertAction").textContent = action;
+  $("#aiAlertAction").classList.toggle("hidden", !action);
+  $("#aiAlertDialog").dataset.code = code;
+  openDialog($("#aiAlertDialog"));
+}
+
+function updateAiPromptCount() {
+  $("#aiPromptCount").textContent = $("#aiPrompt").value.length.toLocaleString("pt-BR");
+}
+function showAiSettingsError(message) {
+  $("#aiSettingsError").textContent = message;
+  $("#aiSettingsError").classList.toggle("hidden", !message);
+}
+function showAiKeyStatus(settings) {
+  $("#aiKeyStatus").textContent = settings.hasKey
+    ? `Chave salva, terminada em ${settings.keyHint}. Para trocar, cole a nova chave; deixando em branco, a atual continua.`
+    : "Nenhuma chave salva ainda.";
+}
+
+async function openAiSettings() {
+  if (!adminMode) return;
+  showAiSettingsError("");
+  $("#aiKey").value = "";
+  $("#aiKeyStatus").textContent = "Carregando configuração…";
+  $("#aiSettingsSave").disabled = true;
+  openDialog($("#aiSettingsDialog"));
+  try {
+    const response = await fetch("/api/ai/settings", { cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(response.status === 403 ? "Sua sessão de admin expirou. Entre de novo." : result.error || "Não foi possível carregar a configuração.");
+    $("#aiPrompt").value = result.prompt;
+    showAiKeyStatus(result);
+    updateAiPromptCount();
+    $("#aiSettingsSave").disabled = false;
+  } catch (error) {
+    $("#aiKeyStatus").textContent = "";
+    showAiSettingsError(error.message);
+  }
+}
+
+async function saveAiSettings(event) {
+  event.preventDefault();
+  if (!adminMode) return;
+  const key = $("#aiKey").value.trim();
+  const payload = { prompt: $("#aiPrompt").value, ...(key ? { key } : {}) };
+  $("#aiSettingsSave").disabled = true;
+  showAiSettingsError("");
+  // Entra na mesma fila do salvamento do estado para as versões não se cruzarem.
+  const task = saveQueue.then(async () => {
+    const response = await fetch("/api/ai/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(response.status === 403 ? "Sua sessão de admin expirou. Entre de novo." : result.error || "Não foi possível salvar.");
+    dataVersion = result.version;
+    return result;
+  });
+  saveQueue = task.catch(() => false);
+  try {
+    const result = await task;
+    showAiKeyStatus(result);
+    closeDialog($("#aiSettingsDialog"));
+    showToast(key ? "Chave e prompt da IA salvos" : "Prompt da IA salvo");
+  } catch (error) {
+    showAiSettingsError(error.message);
+  } finally {
+    $("#aiSettingsSave").disabled = false;
+  }
+}
+
+function setAiNote(text) {
+  $("#aiNote").textContent = text || "";
+  $("#aiNote").classList.toggle("hidden", !text);
+}
+
+async function aiBalance() {
+  if (!adminMode || aiBusy) return;
+  if (currentRound()) { showToast("A escalação desta rodada já está salva. Escolha outra data para montar novos times."); return; }
+  const keys = activeTeamKeys();
+  const players = availablePlayers();
+  if (players.length < Math.max(2, keys.length)) { showToast("Selecione pelo menos dois jogadores para esta partida"); return; }
+  if (players.filter(player => player.fixedGoalkeeper).length > keys.length) { showToast("Selecione no máximo um goleiro fixo por time"); return; }
+  const button = $("#aiBalance");
+  aiBusy = true;
+  button.disabled = true;
+  button.classList.add("is-loading");
+  button.querySelector("span").textContent = "Montando times…";
+  try {
+    const response = await fetch("/api/ai/balance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        teams: keys,
+        names: Object.fromEntries(keys.map(key => [key, String(state[`team${key}Name`] || TEAM_DEFAULTS[key]).slice(0, 30)])),
+        players: players.map(player => ({ id: player.id, name: player.name, rating: Math.min(5, Math.max(1, Math.round(Number(player.rating) || 3))), keeper: Boolean(player.fixedGoalkeeper) }))
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.status === 403) { showToast("Sua sessão de admin expirou. Entre de novo."); return; }
+    if (!response.ok) { showAiProblem(result.code, result.error); return; }
+    const assigned = new Map();
+    keys.forEach(key => (result.teams?.[key] || []).forEach(id => assigned.set(id, key)));
+    if (assigned.size !== players.length || players.some(player => !assigned.has(player.id))) { showAiProblem("bad_output", "A IA devolveu times incompletos. Tente de novo ou use “Equilibrar times”."); return; }
+    selectedSwapId = null;
+    players.forEach(player => { player.team = assigned.get(player.id); });
+    persist();
+    render();
+    setAiNote(result.explanation ? `Critério da IA: ${result.explanation}` : "Times montados pela IA.");
+    document.dispatchEvent(new CustomEvent("bagres:teams-rebuilt"));
+    showToast("Times montados com IA");
+  } catch (_) {
+    showToast("Não foi possível falar com o servidor agora. Tente de novo.");
+  } finally {
+    aiBusy = false;
+    button.classList.remove("is-loading");
+    button.querySelector("span").textContent = "Montar com IA";
+    button.disabled = !adminMode || !!currentRound();
+  }
+}
+
 function startEdit(id) {
   const player = state.players.find(item => item.id === id);
   if (!player) return;
@@ -1228,7 +1377,7 @@ function renderRound({preserveScores = false} = {}) {
   $("#saveRoundDraft").disabled = !round || round.closed;
   $("#scoreForm button[type=submit]").disabled = three && (!round || round.closed || roundMatches(round).length !== 9);
   $$("#scoreForm [data-goals], #scoreForm [data-assists], #matchMvp, #matchBolaMurcha").forEach(input => input.disabled = !!round?.closed);
-  $$("#squadList input, #squadList select, #selectAll, #selectNone, #selectMonthly, #clearTeams, #autoBalance, [data-swap]").forEach(input => input.disabled = !adminMode || !!round);
+  $$("#squadList input, #squadList select, #selectAll, #selectNone, #selectMonthly, #clearTeams, #autoBalance, #aiBalance, [data-swap]").forEach(input => input.disabled = !adminMode || !!round || (input.id === "aiBalance" && aiBusy));
   ["A","B","C"].forEach(key => $(`#team${key}Name`).disabled = !adminMode);
   if (!three) { panel.innerHTML = ""; standingsFooter.innerHTML = ""; return; }
   const names = round?.names || Object.fromEntries(["A","B","C"].map(key => [key,state[`team${key}Name`]]));
@@ -1306,6 +1455,103 @@ async function closeRound() {
 }
 
 let monthlySaving = false;
+// ---------- Transparência: resumo do caixa ----------
+// Lê a planilha oficial pelo servidor (/api/transparency) e cruza os
+// pagamentos de mensalidade do mês com os mensalistas marcados no site.
+let cashLedger = null, cashError = "", cashLoading = false, cashLoadedAt = 0;
+const brl = value => Math.abs(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const signedBrl = value => `${value < 0 ? "−" : value > 0 ? "+" : ""}${brl(value)}`;
+const plainText = value => String(value ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+async function loadCashLedger(force = false) {
+  if (cashLoading || (!force && cashLedger && Date.now() - cashLoadedAt < 120000)) return;
+  cashLoading = true;
+  cashError = "";
+  renderCashInsights();
+  try {
+    const response = await fetch(`/api/transparency${force ? `?t=${Date.now()}` : ""}`);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(result.entries)) throw new Error(result.error || "Não foi possível ler a planilha agora.");
+    cashLedger = result;
+    cashLoadedAt = Date.now();
+  } catch (error) {
+    cashError = error.message;
+  } finally {
+    cashLoading = false;
+    renderCashInsights();
+  }
+}
+
+// Nomes na planilha nem sempre batem com o site ("Gi" x "Giovanni"): compara o primeiro nome.
+function cashPaid(player, payments) {
+  const full = plainText(player.name);
+  const first = full.split(/\s+/)[0];
+  return payments.some(entry => {
+    const description = plainText(entry.description);
+    if (description === full || description.includes(full)) return true;
+    return first.length >= 2 && description.split(/[^a-z0-9]+/).some(token => token && (token === first || token.startsWith(first) || (token.length >= 3 && first.startsWith(token))));
+  });
+}
+
+function cashLedgerList(title, entries, empty) {
+  return `<section class="cash-ledger" aria-label="${title}">
+    <h3>${title}</h3>
+    ${entries.length ? `<ol class="ledger">${entries.map(entry => `<li>
+      <span class="ledger-date">${homeDate(entry.date, { day: "2-digit", month: "2-digit" })}</span>
+      <span class="ledger-what"><b>${escapeHtml(entry.description || "Sem descrição")}</b><small>${escapeHtml([entry.category, entry.type].filter(Boolean).join(" · "))}</small></span>
+      <span class="ledger-value ${entry.value < 0 ? "money-out" : "money-in"}">${signedBrl(entry.value)}</span>
+    </li>`).join("")}</ol>` : `<p class="cash-empty">${empty}</p>`}
+  </section>`;
+}
+
+function renderCashInsights() {
+  const target = $("#cashInsights");
+  if (!target) return;
+  target.setAttribute("aria-busy", String(cashLoading && !cashLedger));
+  if (!cashLedger) {
+    target.innerHTML = cashError
+      ? `<div class="cash-error"><p>${escapeHtml(cashError)} A planilha continua disponível logo abaixo.</p><button type="button" class="button ghost" id="cashRetry">Tentar de novo</button></div>`
+      : '<div class="cash-skeleton" aria-label="Carregando o resumo do caixa"><span></span><span></span><span></span><span></span></div>';
+    $("#cashRetry")?.addEventListener("click", () => loadCashLedger(true));
+    return;
+  }
+  const month = currentMonthValue();
+  const monthName = homeDate(`${month}-01`, { month: "long" });
+  const monthEntries = cashLedger.entries.filter(entry => entry.date.startsWith(month));
+  const inflow = monthEntries.filter(entry => entry.value > 0).reduce((sum, entry) => sum + entry.value, 0);
+  const outflow = monthEntries.filter(entry => entry.value < 0).reduce((sum, entry) => sum - entry.value, 0);
+  const ordered = cashLedger.entries.map((entry, index) => ({ ...entry, index })).sort((a, b) => b.date.localeCompare(a.date) || b.index - a.index);
+  const members = (state.monthlyMembers?.[month] || []).map(id => state.players.find(player => player.id === id)).filter(Boolean);
+  const payments = monthEntries.filter(entry => entry.value > 0 && plainText(entry.category).includes("mensal"));
+  const pending = members.filter(player => !cashPaid(player, payments));
+  const balance = Number(cashLedger.balance) || 0;
+  const readAt = cashLedger.fetchedAt ? new Date(cashLedger.fetchedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+  let pendingBody;
+  if (!members.length) pendingBody = `<p class="cash-empty">Os mensalistas de ${monthName} ainda não foram marcados. Quando a diretoria marcar (mais abaixo nesta aba), aparece aqui quem falta pagar.</p>`;
+  else if (!pending.length) pendingBody = `<p class="cash-all-paid">Todos os ${members.length} mensalistas de ${monthName} já pagaram.</p>`;
+  else pendingBody = `<ul class="confirmed-list cash-people">${pending.map(player => `<li>${playerAvatar(player)}<span>${escapeHtml(player.name)}</span></li>`).join("")}</ul>`;
+  target.innerHTML = `<div class="cash-top">
+      <section class="cash-balance" aria-labelledby="cash-balance-title">
+        <h3 id="cash-balance-title">Saldo do clube</h3>
+        <strong class="cash-balance-value ${balance < 0 ? "money-out" : "money-in"}">${balance < 0 ? "−" : ""}${brl(balance)}</strong>
+        <p class="cash-balance-month">Em ${monthName}, entraram <b class="money-in">${brl(inflow)}</b> e saíram <b class="money-out">${brl(outflow)}</b>.</p>
+        <p class="cash-source">Conforme a planilha oficial${readAt ? ` · lida às ${readAt}` : ""}</p>
+      </section>
+      <section class="cash-pending" aria-labelledby="cash-pending-title">
+        <div class="cash-pending-head">
+          <h3 id="cash-pending-title">Pagantes pendentes</h3>
+          ${members.length ? `<span class="cash-count">${pending.length}</span>` : ""}
+        </div>
+        <p class="cash-sub">${members.length ? `Mensalistas de ${monthName} sem mensalidade na planilha · ${members.length - pending.length} de ${members.length} já pagaram` : `Mensalistas de ${monthName}`}</p>
+        ${pendingBody}
+      </section>
+    </div>
+    <div class="cash-lists">
+      ${cashLedgerList("Últimas entradas", ordered.filter(entry => entry.value > 0).slice(0, 5), "Nenhuma entrada lançada ainda.")}
+      ${cashLedgerList("Últimas saídas", ordered.filter(entry => entry.value < 0).slice(0, 5), "Nenhuma saída lançada ainda.")}
+    </div>`;
+}
+
 function renderMonthlyMembers() {
   const monthInput = $("#monthlyMembersMonth");
   if (!monthInput.value) monthInput.value = currentMonthValue();
@@ -1322,6 +1568,7 @@ function renderMonthlyMembers() {
   }).join("") : '<p class="empty-state">Cadastre os jogadores para marcar os mensalistas.</p>';
   monthInput.disabled = monthlySaving;
   $$('[data-monthly-member]').forEach(input=>input.addEventListener("change",()=>setMonthlyMember(input.dataset.monthlyMember,input.checked,month)));
+  renderCashInsights();
 }
 async function setMonthlyMember(playerId, active, month) {
   if (!adminMode || monthlySaving || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !state.players.some(player=>player.id===playerId) || typeof active !== "boolean") return false;
@@ -1399,7 +1646,14 @@ $("#statsForm").addEventListener("submit", event => {
   showToast("Estatísticas individuais atualizadas");
 });
 
-$("#autoBalance").addEventListener("click", autoBalance);
+$("#autoBalance").addEventListener("click", () => { setAiNote(""); autoBalance(); });
+$("#aiBalance").addEventListener("click", aiBalance);
+$("#aiSettingsOpen").addEventListener("click", openAiSettings);
+$("#aiSettingsForm").addEventListener("submit", saveAiSettings);
+$("#aiPrompt").addEventListener("input", updateAiPromptCount);
+$("#aiAlertAction").addEventListener("click", () => { closeDialog($("#aiAlertDialog")); openAiSettings(); });
+$$("[data-close-dialog]").forEach(button => button.addEventListener("click", () => closeDialog(button.closest("dialog"))));
+$$("dialog.app-dialog").forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) closeDialog(dialog); }));
 $("#addFirstPlayer").addEventListener("click", () => { setTab("jogadores"); $("#playerName").focus(); });
 $("#selectMonthly").addEventListener("click", async () => {
   if (!adminMode || currentRound()) return;
@@ -1421,6 +1675,7 @@ $("#selectNone").addEventListener("click", () => {
   persist(); render();
 });
 $("#clearTeams").addEventListener("click", () => {
+  setAiNote("");
   if (!adminMode || currentRound()) return;
   selectedSwapId = null;
   state.players.forEach(player => { player.team = null; });
@@ -1582,6 +1837,7 @@ $("#saveRoundDraft").addEventListener("click", async () => {
 $("#refreshTransparency").addEventListener("click", () => {
   const frame = $("#transparencySheet");
   frame.src = frame.getAttribute("src");
+  loadCashLedger(true);
 });
 
 let artworkObjectUrl = null;

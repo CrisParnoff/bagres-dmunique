@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 const nodes = new Map();
 function node(selector) {
-  if (!nodes.has(selector)) nodes.set(selector,{ value:'',innerHTML:'',textContent:'',style:{}, dataset:{},className:'',disabled:false,required:false, classList:{add(){},remove(){},toggle(){}},querySelectorAll(){return [];},addEventListener(){},reset(){},scrollIntoView(){} });
+  if (!nodes.has(selector)) nodes.set(selector,{ value:'',innerHTML:'',textContent:'',style:{}, dataset:{},className:'',disabled:false,required:false, classList:{add(){},remove(){},toggle(){}},querySelectorAll(){return [];},addEventListener(){},reset(){},scrollIntoView(){},setAttribute(){} });
   return nodes.get(selector);
 }
 const context = vm.createContext({console,structuredClone,Map,Set,Date,setTimeout,clearTimeout,document:{querySelector:node,querySelectorAll(){return [];}},localStorage:{getItem(){return null;}},confirm:()=>true});

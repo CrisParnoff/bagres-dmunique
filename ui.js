@@ -122,6 +122,12 @@
     replayClass(qs(".versus"), "kick", 1100);
   });
 
+  // Times montados pela IA: mesma entrada do "Equilibrar times".
+  document.addEventListener("bagres:teams-rebuilt", () => {
+    replayClass(qs(".teams-grid"), "replaying", 1600);
+    replayClass(qs(".versus"), "kick", 1100);
+  });
+
   // Troca entre times: destaca os dois jogadores que trocaram.
   let swapBefore = null;
   const teamOf = id => ["A", "B", "C"].find(team => qs(`#team${team}List [data-swap="${CSS.escape(id)}"]`)) || null;

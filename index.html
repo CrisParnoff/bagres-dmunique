@@ -43,6 +43,8 @@
       <symbol id="i-x" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
       <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M8.5 20.5 3.8 15.8a1.8 1.8 0 0 1 0-2.6l8.9-8.9a1.8 1.8 0 0 1 2.6 0l4.5 4.5a1.8 1.8 0 0 1 0 2.6L11.6 20.5H8.5ZM20.5 20.5H11.6M9 9.6l5.4 5.4"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.3"/><path stroke-width="2.8" stroke-linecap="butt" d="M12 2.6v3.2M12 18.2v3.2M2.6 12h3.2M18.2 12h3.2M5.35 5.35l2.26 2.26M16.39 16.39l2.26 2.26M5.35 18.65l2.26-2.26M16.39 7.61l2.26-2.26"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M11 3.5c.6 4 2.7 6.1 6.7 6.7-4 .6-6.1 2.7-6.7 6.7-.6-4-2.7-6.1-6.7-6.7 4-.6 6.1-2.7 6.7-6.7Z"/><path d="M18.6 14.8c.25 1.6 1.05 2.4 2.65 2.65-1.6.25-2.4 1.05-2.65 2.65-.25-1.6-1.05-2.4-2.65-2.65 1.6-.25 2.4-1.05 2.65-2.65Z"/></symbol>
       <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M4.5 8.5v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-10M10 12.5h4"/></symbol>
     </svg>
     <header class="topbar">
@@ -150,9 +152,12 @@
             <input type="date" id="matchDate" />
           </label>
           <button class="button secondary" id="autoBalance" type="button"><svg class="icon" aria-hidden="true"><use href="#i-bolt" /></svg>Equilibrar times</button>
+          <button class="button ai-button" id="aiBalance" type="button"><svg class="icon" aria-hidden="true"><use href="#i-sparkle" /></svg><span>Montar com IA</span></button>
           <button class="button ghost" id="clearTeams" type="button"><svg class="icon" aria-hidden="true"><use href="#i-eraser" /></svg>Limpar escalação</button>
           <button class="button secondary" type="button" id="toggleArtwork"><svg class="icon" aria-hidden="true"><use href="#i-shirt" /></svg>Criar arte dos times</button>
+          <button class="gear-button" id="aiSettingsOpen" type="button" aria-label="Configurar a IA dos times" title="Configurar a IA dos times"><svg class="icon" aria-hidden="true"><use href="#i-gear" /></svg></button>
         </div>
+        <p class="ai-note admin-only hidden" id="aiNote" role="status" aria-live="polite"></p>
 
         <section id="artworkPanel" class="card artwork-panel admin-only hidden" aria-labelledby="artwork-title">
           <div class="section-heading"><div><p class="eyebrow">DIA DE JOGO</p><h3 id="artwork-title">Arte dos times</h3><p class="muted small">Usa a data, os nomes dos times e as fotos da escalação. Gere novamente depois de alterar os jogadores.</p></div><span class="pill">Story · 1080 × 1920</span></div>
@@ -459,6 +464,7 @@
           <h2 id="transparency-title">Transparência</h2>
           <p class="muted">Acompanhe as entradas e saídas do caixa na planilha oficial do FC Bagres.</p>
         </div>
+        <div class="cash" id="cashInsights" aria-live="polite" aria-busy="true"></div>
         <div class="card transparency-card">
           <div class="section-heading transparency-heading">
             <div><h3>Planilha do caixa</h3><p class="muted small">Os registros são mantidos no Google Planilhas.</p></div>
@@ -478,6 +484,36 @@
         </section>
       </section>
     </main>
+
+    <dialog class="app-dialog ai-settings" id="aiSettingsDialog" aria-labelledby="aiSettingsTitle">
+      <form id="aiSettingsForm">
+        <div class="dialog-head">
+          <h2 id="aiSettingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-sparkle" /></svg>IA dos times</h2>
+          <button type="button" class="dialog-close" data-close-dialog aria-label="Fechar"><svg class="icon" aria-hidden="true"><use href="#i-x" /></svg></button>
+        </div>
+        <p class="dialog-lead">Na hora de montar os times, a IA usa o nível de cada jogador (1 a 5) e as orientações da diretoria abaixo. Só os admins veem esta configuração.</p>
+        <label for="aiKey">Chave Gemini</label>
+        <input type="password" id="aiKey" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="Cole aqui a chave do Google AI Studio" aria-describedby="aiKeyStatus" />
+        <p class="field-help" id="aiKeyStatus">Carregando…</p>
+        <label for="aiPrompt">Prompt</label>
+        <textarea id="aiPrompt" rows="9" maxlength="8000" aria-describedby="aiPromptHelp" placeholder="Fale um pouco de cada jogador e de como equilibrar. Ex.: “Fulano é o mais rápido e marca bem; Ciclano e Beltrano não rendem no mesmo time; separe os dois mais altos.”"></textarea>
+        <p class="field-help" id="aiPromptHelp"><span id="aiPromptCount">0</span> de 8.000 caracteres. As regras de tamanho dos times e de um goleiro fixo por time continuam valendo.</p>
+        <p class="form-error hidden" id="aiSettingsError" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" class="button ghost" data-close-dialog>Cancelar</button>
+          <button type="submit" class="button primary" id="aiSettingsSave">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="app-dialog ai-alert" id="aiAlertDialog" aria-labelledby="aiAlertTitle" aria-describedby="aiAlertMessage">
+      <span class="ai-alert-mark" aria-hidden="true"><svg class="icon"><use href="#i-sparkle" /></svg></span>
+      <h2 id="aiAlertTitle"></h2>
+      <p id="aiAlertMessage"></p>
+      <div class="dialog-actions">
+        <button type="button" class="button ghost" data-close-dialog>Fechar</button>
+        <button type="button" class="button primary" id="aiAlertAction">Trocar chave</button>
+      </div>
+    </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="app.js"></script>

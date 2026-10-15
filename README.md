@@ -12,6 +12,11 @@ O frontend usa o remake visual do FC Bagres: camisa vinho, escudo, fonte Archivo
 
 Os testes incluem o contrato entre a interface e os controles do aplicativo, além das regras de futebol, artes e integração com Supabase.
 
+## IA dos times e resumo do caixa
+
+- **IA dos times (Gemini):** no modo admin, a tela Partida tem o botão “Montar com IA” e uma engrenagem para salvar a chave Gemini e o prompt da diretoria. Os dois ficam guardados só no servidor (junto do estado salvo, mas nunca devolvidos pela API) e a chamada ao Gemini sai do servidor. Se a chave atingir o limite, os admins veem um aviso para trocá-la. O limite do Gemini é por projeto do Google Cloud: a chave nova precisa ser de outro projeto ou outra conta.
+- **Transparência:** `/api/transparency` lê a planilha pública do caixa (linha “CAIXA” e colunas Data, Descrição, Categoria, Tipo, Valor) e a aba mostra saldo, mensalistas pendentes do mês e as últimas entradas e saídas acima da planilha.
+
 ## Como abrir
 
 1. Instale o **Node.js 24 ou superior**: https://nodejs.org/ (inclui o npm).
