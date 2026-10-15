@@ -23,18 +23,19 @@ function drawTeamArtwork(ctx, data, images) {
   const maxPlayers=Math.max(...data.teams.map(team=>team.players.length));
   const rowHeight=Math.min(106, Math.floor(690/maxPlayers));
   const cardHeight=132+maxPlayers*rowHeight;
-  const colors=[{fill:'#102d4a',line:'#61bdff',text:'#fff'},{fill:'#f1f3f6',line:'#e6c76e',text:'#101b2a'},{fill:'#12291f',line:'#83ba75',text:'#fff'}];
+  // Equipes: A vermelha, B branca, C preta.
+  const colors=[{fill:'#b30a1a',line:'#ff6b75',text:'#fff',label:'#ffc9cd',avatar:'#7a0612'},{fill:'#f1f3f6',line:'#e6c76e',text:'#101b2a',label:'#586577',avatar:'#d9e3ed'},{fill:'#0d0d0f',line:'#8d8f96',text:'#fff',label:'#b9bcc4',avatar:'#27272c'}];
   data.teams.forEach((team,index)=>{
     const x=margin+index*(cardWidth+gap), y=744, color=colors[index];
     box(x,y,cardWidth,cardHeight,22,color.fill,color.line);
-    text(`EQUIPE ${team.key}`,x+22,y+31,19,index===1?'#586577':'#aec5d9',cardWidth-44);
+    text(`EQUIPE ${team.key}`,x+22,y+31,19,color.label,cardWidth-44);
     text(team.name.toUpperCase(),x+22,y+77,count===3?30:37,color.text,cardWidth-44);
     team.players.forEach((player,i)=>{
       const rowY=y+118+i*rowHeight, avatarSize=Math.min(count===3?66:76,rowHeight-16), avatarX=x+18, avatarY=rowY+(rowHeight-avatarSize)/2;
       box(x+10,rowY+3,cardWidth-20,rowHeight-7,12,index===1?'#ffffff':'rgba(0,0,0,.20)');
       ctx.save();ctx.beginPath();ctx.arc(avatarX+avatarSize/2,avatarY+avatarSize/2,avatarSize/2,0,Math.PI*2);ctx.clip();
       const photo=images.photos.get(player.id);
-      if(photo){const crop=Math.min(photo.width,photo.height);ctx.drawImage(photo,(photo.width-crop)/2,(photo.height-crop)/2,crop,crop,avatarX,avatarY,avatarSize,avatarSize);}else{ctx.fillStyle=index===1?'#d9e3ed':'#203e60';ctx.fillRect(avatarX,avatarY,avatarSize,avatarSize);text(player.initials,avatarX+avatarSize/2,avatarY+avatarSize/2,22,color.text,avatarSize-8,'center');}
+      if(photo){const crop=Math.min(photo.width,photo.height);ctx.drawImage(photo,(photo.width-crop)/2,(photo.height-crop)/2,crop,crop,avatarX,avatarY,avatarSize,avatarSize);}else{ctx.fillStyle=color.avatar;ctx.fillRect(avatarX,avatarY,avatarSize,avatarSize);text(player.initials,avatarX+avatarSize/2,avatarY+avatarSize/2,22,color.text,avatarSize-8,'center');}
       ctx.restore();
       const nameX=avatarX+avatarSize+12;
       text(player.name,nameX,rowY+rowHeight/2-(player.fixedGoalkeeper?9:0),count===3?25:30,color.text,x+cardWidth-nameX-18);

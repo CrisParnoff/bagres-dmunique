@@ -369,6 +369,28 @@ function renderHomeResults() {
   $("#homeMatches").innerHTML = `<div class="results-body"><ol class="scoreboard ${round ? "is-round" : matches.length === 1 ? "is-single" : ""}">${rows}</ol>${aside}</div>`;
 }
 
+// Placa do mês: jogos e gols do mês corrente e confirmados da próxima escalação.
+function renderHomeMonth(monthName, monthlyMatches) {
+  const games = recordedGameCount(monthlyMatches);
+  const goals = monthlyMatches.reduce((sum, match) => sum + Number(match.scoreA) + Number(match.scoreB), 0);
+  const confirmed = availablePlayers().length;
+  const lastDate = monthlyMatches.reduce((max, match) => (match.date || "") > max ? match.date : max, "");
+  const shortDate = value => homeDate(value, { day: "numeric", month: "numeric" });
+  const average = games ? (goals / games).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "";
+  const stats = [
+    ["calendar", games, games === 1 ? "jogo" : "jogos", games ? `o último em ${shortDate(lastDate)}` : "a bola ainda não rolou"],
+    ["ball", goals, goals === 1 ? "gol" : "gols", games ? `média de ${average} por jogo` : "ninguém marcou ainda"],
+    ["users", confirmed, confirmed === 1 ? "confirmado" : "confirmados", `de ${state.players.length} no elenco${state.matchDate ? ` · ${homeWeekday(state.matchDate)}, ${shortDate(state.matchDate)}` : ""}`]
+  ];
+  $("#homeMonthName").textContent = monthName;
+  $("#homeSummary").innerHTML = stats.map(([icon, value, label, note]) => `<li class="month-stat">
+    <span class="month-stat-icon" aria-hidden="true"><svg class="icon"><use href="#i-${icon}" /></svg></span>
+    <strong class="month-stat-value">${value}</strong>
+    <span class="month-stat-label">${label}</span>
+    <span class="month-stat-note">${note}</span>
+  </li>`).join("");
+}
+
 function renderHome() {
   const month = currentMonthValue();
   const monthName = homeDate(`${month}-01`, { month: "long" });
@@ -378,11 +400,7 @@ function renderHome() {
   $$("[data-home-month]").forEach(element => { element.textContent = `de ${monthName}`; });
   renderHomePodium("goals", "#homeGoals", "gol", "gols", monthName, stats);
   renderHomePodium("assists", "#homeAssists", "assistência", "assistências", monthName, stats);
-  const games = recordedGameCount(monthlyMatches);
-  const goals = monthlyMatches.reduce((sum, match) => sum + Number(match.scoreA) + Number(match.scoreB), 0);
-  const confirmed = availablePlayers().length;
-  const nextDay = state.matchDate ? homeWeekday(state.matchDate) : "";
-  $("#homeSummary").innerHTML = `<span class="month-line-month">${monthName[0].toUpperCase()}${monthName.slice(1)}</span> até agora: <b>${games}</b> ${games === 1 ? "jogo" : "jogos"} e <b>${goals}</b> ${goals === 1 ? "gol" : "gols"}. ${nextDay ? `Na escalação de ${nextDay}` : "Na escalação"}, <b>${confirmed}</b> ${confirmed === 1 ? "confirmado" : "confirmados"}.`;
+  renderHomeMonth(monthName, monthlyMatches);
   renderHomeLineup();
   renderHomeResults();
 }
@@ -737,7 +755,7 @@ function renderContributions() {
     return;
   }
   target.innerHTML = activeTeamKeys().map(key => [key, currentRound()?.names[key] || state[`team${key}Name`]]).map(([team, name]) => `
-    <div class="contribution-team">
+    <div class="contribution-team kit-${team.toLowerCase()}">
       <h4>${escapeHtml(name)}</h4>
       ${entryPlayers(team).map(player => `
         <div class="contribution-row">
@@ -988,9 +1006,9 @@ function renderMatches() {
   $("#matchesList").innerHTML = state.matches.map(match => `
     <div class="match-row">
       <span class="match-date">${new Date(`${match.date}T12:00:00`).toLocaleDateString("pt-BR")}${match.roundId ? `<small> · Jogo ${match.scheduleIndex + 1} · 10 min</small>` : ""}</span>
-      <b class="match-team">${escapeHtml(match.teamAName)}</b>
+      <b class="match-team kit-${(match.teamAKey || "A").toLowerCase()}">${escapeHtml(match.teamAName)}</b>
       <span class="match-score">${match.scoreA} × ${match.scoreB}</span>
-      <b class="match-team">${escapeHtml(match.teamBName)}</b>
+      <b class="match-team kit-${(match.teamBKey || "B").toLowerCase()}">${escapeHtml(match.teamBName)}</b>
       <button class="mini-button danger admin-only" data-delete-match="${match.id}" title="Excluir partida">×</button>
       <div class="match-details">${awardSummary(match).replace(/^ · /, '')}${matchContributionDetails(match)}</div>
     </div>`).join("");
