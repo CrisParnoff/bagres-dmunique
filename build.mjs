@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 const css = readFileSync("styles.css", "utf8");
 const cssVersion = createHash("sha256").update(css).digest("hex").slice(0,12);
 const source = readFileSync("server/worker.template.mjs", "utf8");
-const app = readFileSync("artwork.js", "utf8") + "\n" + readFileSync("app.js", "utf8");
+const app = ["artwork.js", "app.js", "ui.js"].map(path => readFileSync(path, "utf8")).join("\n");
 const logoDataUri = `data:image/webp;base64,${readFileSync("assets/fcbagres-logo.webp").toString("base64")}`;
 const mascotDataUri = `data:image/webp;base64,${readFileSync("assets/fcbagres-mascot-cutout.webp").toString("base64")}`;
 // Check the exact browser script before embedding it in the Worker output.

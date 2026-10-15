@@ -2,40 +2,86 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#090f1b" />
-    <meta name="description" content="Jogadores, times da semana e ranking do FC BAGRES" />
-    <title>FC BAGRES — Partidas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#4b0514" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Times da semana, placares, ranking e stats do FC Bagres D’Munique." />
+    <meta property="og:title" content="FC Bagres D’Munique" />
+    <meta property="og:description" content="Times da semana, placares, ranking e quem levou o Bagre." />
+    <meta property="og:image" content="/assets/og-image.jpg" />
+    <meta property="og:type" content="website" />
+    <title>FC Bagres D’Munique</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preload" href="/assets/fonts/archivo-var-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/assets/crest-256.webp" as="image" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-field" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M12 5v14M2.5 9.5h3v5h-3M21.5 9.5h-3v5h3"/><circle cx="12" cy="12" r="2.4"/></symbol>
+      <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M8.5 3 3 6l2 5 3-1.2V21h8V9.8l3 1.2 2-5-5.5-3c-.6 1.6-2 2.6-3.5 2.6S9.1 4.6 8.5 3Z"/></symbol>
+      <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 14v4M8.5 21h7M9.5 18h5"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20.5h18M6 20.5v-6M12 20.5V5M18 20.5v-10"/></symbol>
+      <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21.5c3.9 0 6.8-2.7 6.8-6.6 0-3.4-2.1-5.6-3.8-7.7-.4 1.9-1.3 3-2.4 3.6.3-3-.9-5.9-3.3-8.3.2 2.9-1.4 4.8-2.8 6.6-1 1.3-1.6 2.7-1.6 4.4 0 4.6 3.3 8 7.1 8Z"/><path d="M12 21.5c-1.7 0-3-1.3-3-3.1 0-1.9 1.6-3 2.3-4.8 1.6 1.2 3.7 2.5 3.7 4.8 0 1.8-1.3 3.1-3 3.1Z"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5 4.5 14h7l-1 7.5 9-11.5h-7l1-7.5Z"/></symbol>
+      <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5v5h5M12 7.5V12l3 2"/></symbol>
+      <symbol id="i-ball" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m12 7.6 4.2 3-1.6 4.9H9.4L7.8 10.6Z"/><path d="M12 7.6V3M16.2 10.6l4.3-1.3M14.6 15.5l2.6 3.7M9.4 15.5l-2.6 3.7M7.8 10.6 3.5 9.3"/></symbol>
+      <symbol id="i-assist" viewBox="0 0 24 24"><path d="M3.5 19.5C5.6 12.3 10.3 8.5 18 8.5"/><path d="m14.5 4.5 4 4-4 4"/><circle cx="4.5" cy="19.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-medal" viewBox="0 0 24 24"><path d="M8 2.5 10.5 9M16 2.5 13.5 9"/><circle cx="12" cy="15" r="6"/><path d="m12 12 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3Z"/></symbol>
+      <symbol id="i-crown" viewBox="0 0 24 24"><path d="m3 7.5 4.5 4.5L12 5l4.5 7L21 7.5 19 19H5L3 7.5Z"/><path d="M5.5 15.5h13"/></symbol>
+      <symbol id="i-catfish" viewBox="0 0 24 24"><path d="M3.5 12.4c2.3-3.4 6.2-4.9 10.4-4.1 1.9.4 3.4 1.2 4.6 2.3l2.9-2.9v9.6l-2.9-2.9c-1.2 1.1-2.7 1.9-4.6 2.3-4.2.8-8.1-.8-10.4-4.3Z"/><path d="m10.4 8 1.8-2.6 2 2.9M3.8 13.1C2.5 14 1.9 15.4 2 17M4.9 14c-.6 1.4-.5 2.9.2 4.3M3.8 11.6C2.6 10.8 2 9.6 2 8.1"/><circle cx="7.2" cy="11.4" r="1" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-glove" viewBox="0 0 24 24"><path d="M7.5 21.5h8.2a2.3 2.3 0 0 0 2.3-2.3v-6.4a1.6 1.6 0 0 0-3.2 0V5.6a1.6 1.6 0 0 0-3.2 0V10V4.4a1.6 1.6 0 0 0-3.2 0V10V6.6a1.6 1.6 0 0 0-3.2 0v8.2c0 3.6 1.6 6.7 2.3 6.7Z"/></symbol>
+      <symbol id="i-whistle" viewBox="0 0 24 24"><circle cx="8" cy="14.5" r="5.5"/><path d="M12.4 11.2 21.5 8V4.5H8.5v4.5"/><circle cx="8" cy="14.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2.8 19.5 5.6v5.9c0 4.7-3.2 8.1-7.5 9.7-4.3-1.6-7.5-5-7.5-9.7V5.6L12 2.8Z"/><path d="m8.8 12 2.2 2.2 4.3-4.4"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6"/><path d="M15.5 4.8a3.4 3.4 0 0 1 0 6.4M18 14.6c2 .7 3.2 2.5 3.5 5.4"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M8.5 20.5 3.8 15.8a1.8 1.8 0 0 1 0-2.6l8.9-8.9a1.8 1.8 0 0 1 2.6 0l4.5 4.5a1.8 1.8 0 0 1 0 2.6L11.6 20.5H8.5ZM20.5 20.5H11.6M9 9.6l5.4 5.4"/></symbol>
+      <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M4.5 8.5v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-10M10 12.5h4"/></symbol>
+    </svg>
     <header class="topbar">
       <div class="brand">
-        <img class="brand-logo" src="__FCBAGRES_LOGO_DATA_URI__" alt="" />
-        <div class="brand-copy"><h1>FC BAGRES</h1><span>FUTSAL ENTRE AMIGOS</span></div>
+        <span class="brand-crest">
+          <img class="brand-logo" src="__FCBAGRES_LOGO_DATA_URI__" width="256" height="256" alt="Escudo do FC Bagres D’Munique" />
+        </span>
+        <div class="brand-copy">
+          <h1 class="brand-name"><span class="visually-hidden">FC </span>Bagres <span class="brand-name-tail">D’Munique</span></h1>
+          <span class="brand-tag">Futebol Clube</span>
+        </div>
       </div>
       <div class="header-actions">
-        <button class="button secondary" id="adminToggle" type="button">Entrar como admin</button>
-        <button class="icon-button admin-only" id="resetData" title="Restaurar lista inicial" aria-label="Restaurar lista inicial">↻</button>
+        <button class="button secondary admin-toggle" id="adminToggle" type="button">Entrar como admin</button>
+        <button class="icon-button admin-only" id="resetData" type="button" title="Restaurar lista inicial" aria-label="Restaurar lista inicial"><svg class="icon"><use href="#i-history" /></svg></button>
       </div>
     </header>
 
     <nav class="tabs" aria-label="Navegação principal">
-      <button class="tab active" data-tab="inicio">Início</button>
-      <button class="tab" data-tab="partida">Partida</button>
-      <button class="tab admin-only" data-tab="jogadores">Jogadores</button>
-      <button class="tab" data-tab="ranking">Ranking</button>
-      <button class="tab" data-tab="stats">Stats</button>
-      <button class="tab" data-tab="destaques">Destaques</button>
-      <button class="tab" data-tab="transparencia">Transparência</button>
+      <button class="tab active" data-tab="inicio" type="button"><svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg><span>Início</span></button>
+      <button class="tab" data-tab="partida" type="button"><svg class="icon" aria-hidden="true"><use href="#i-field" /></svg><span>Partida</span></button>
+      <button class="tab admin-only" data-tab="jogadores" type="button"><svg class="icon" aria-hidden="true"><use href="#i-shirt" /></svg><span>Jogadores</span></button>
+      <button class="tab" data-tab="ranking" type="button"><svg class="icon" aria-hidden="true"><use href="#i-trophy" /></svg><span>Ranking</span></button>
+      <button class="tab" data-tab="stats" type="button"><svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg><span>Stats</span></button>
+      <button class="tab" data-tab="destaques" type="button"><svg class="icon" aria-hidden="true"><use href="#i-flame" /></svg><span>Destaques</span></button>
+      <button class="tab" data-tab="transparencia" type="button"><svg class="icon" aria-hidden="true"><use href="#i-archive" /></svg><span>Transparência</span></button>
     </nav>
 
     <main>
       <p class="access-note" id="accessNote">Modo de visualização. Entre como admin para editar jogadores e resultados.</p>
-      <form class="card password-form hidden" id="passwordForm" role="dialog" aria-modal="true" aria-label="Entrar como admin">
+      <form class="card password-form hidden" id="passwordForm" role="dialog" aria-modal="true" aria-labelledby="passwordTitle">
+        <img class="password-crest" src="/assets/crest-256.webp" width="256" height="256" alt="" />
+        <h2 class="password-title" id="passwordTitle">Área da diretoria</h2>
+        <p class="password-copy">Entre com a senha de admin para montar times e lançar resultados.</p>
         <label>Senha de admin<input type="password" id="adminPassword" required autocomplete="current-password" /></label>
-        <button type="submit" class="button primary">Entrar</button>
-        <button type="button" class="button ghost" id="cancelPassword">Cancelar</button>
+        <div class="password-actions">
+          <button type="button" class="button ghost" id="cancelPassword">Cancelar</button>
+          <button type="submit" class="button primary">Entrar</button>
+        </div>
       </form>
       <div class="card import-note hidden admin-only" id="importNote">Há dados deste navegador anteriores à versão com admin. <button class="button secondary" id="importLocal" type="button">Importar dados deste navegador</button></div>
       <section id="inicio" class="view active" aria-labelledby="inicio-title">
@@ -72,9 +118,9 @@
             Data
             <input type="date" id="matchDate" />
           </label>
-          <button class="button secondary" id="autoBalance">⚡ Equilibrar times</button>
-          <button class="button ghost" id="clearTeams">Limpar escalação</button>
-          <button class="button secondary" type="button" id="toggleArtwork">Criar arte dos times</button>
+          <button class="button secondary" id="autoBalance" type="button"><svg class="icon" aria-hidden="true"><use href="#i-bolt" /></svg>Equilibrar times</button>
+          <button class="button ghost" id="clearTeams" type="button"><svg class="icon" aria-hidden="true"><use href="#i-eraser" /></svg>Limpar escalação</button>
+          <button class="button secondary" type="button" id="toggleArtwork"><svg class="icon" aria-hidden="true"><use href="#i-shirt" /></svg>Criar arte dos times</button>
         </div>
 
         <section id="artworkPanel" class="card artwork-panel admin-only hidden" aria-labelledby="artwork-title">
@@ -103,7 +149,7 @@
             <div class="empty-state" id="teamAEmpty">Escolha jogadores abaixo</div>
           </article>
 
-          <div class="versus-wrap"><span class="eyebrow">CONFRONTO</span><div class="versus" aria-hidden="true">VS</div><span id="matchDateLabel" class="match-date-label"></span></div>
+          <div class="versus-wrap"><span class="eyebrow">CONFRONTO</span><div class="versus" aria-hidden="true"><span>VS</span></div><span id="matchDateLabel" class="match-date-label"></span></div>
 
           <article class="team-card team-b">
             <div class="team-heading">
@@ -162,9 +208,9 @@
             <p id="scoreFormHelp" class="muted small">O resultado atualiza jogos, vitórias, empates e derrotas. Informe os gols e assistências de cada jogador abaixo.</p>
           </div>
           <div class="score-inputs">
-            <label><span id="scoreATeamLabel">Azul</span><input type="number" id="scoreA" min="0" max="99" required placeholder="0" /></label>
+            <label><span id="scoreATeamLabel">Azul</span><input type="number" inputmode="numeric" id="scoreA" min="0" max="99" required placeholder="0" /></label>
             <b>×</b>
-            <label><span id="scoreBTeamLabel">Branco</span><input type="number" id="scoreB" min="0" max="99" required placeholder="0" /></label>
+            <label><span id="scoreBTeamLabel">Branco</span><input type="number" inputmode="numeric" id="scoreB" min="0" max="99" required placeholder="0" /></label>
           </div>
           <div class="contributions" id="contributions"></div>
           <div class="match-awards" id="matchAwards">
@@ -239,11 +285,11 @@
         <form id="playerForm" class="card player-form admin-only">
           <input type="hidden" id="editingId" />
           <label>Nome<input type="text" id="playerName" required maxlength="28" placeholder="Ex.: Gabriel" autocomplete="off" /></label>
-          <label>Pontuação<input type="number" id="playerRating" required min="1" max="5" value="3" /></label>
+          <label>Pontuação<input type="number" inputmode="numeric" id="playerRating" required min="1" max="5" value="3" /></label>
           <label class="player-photo-control">Foto do jogador<input type="file" id="playerPhoto" accept="image/jpeg,image/png,image/webp" /><span class="small">JPG, PNG ou WebP · até 2 MB</span></label>
-          <button class="button primary" type="submit" id="playerSubmit">Adicionar jogador</button>
+          <div class="player-form-actions"><button class="button primary" type="submit" id="playerSubmit">Adicionar jogador</button>
           <button class="button ghost hidden" type="button" id="cancelEdit">Cancelar</button>
-          <button class="button ghost hidden" type="button" id="removePlayerPhoto">Remover foto</button>
+          <button class="button ghost hidden" type="button" id="removePlayerPhoto">Remover foto</button></div>
         </form>
         <div class="card roster-card">
           <div class="section-heading">
@@ -321,12 +367,12 @@
             <div class="section-heading"><h4 id="statsTitle">Editar estatísticas</h4><button type="button" class="mini-button" id="closeStats" aria-label="Fechar edição">×</button></div>
             <input type="hidden" id="statsPlayerId" />
             <div class="stats-fields">
-              <label>Jogos<input id="statGames" type="number" min="0" max="999" required /></label>
-              <label>Vitórias<input id="statWins" type="number" min="0" max="999" required /></label>
-              <label>Empates<input id="statDraws" type="number" min="0" max="999" required /></label>
-              <label>Derrotas<input id="statLosses" type="number" min="0" max="999" required /></label>
-              <label>Gols<input id="statGoals" type="number" min="0" max="999" required /></label>
-              <label>Assistências<input id="statAssists" type="number" min="0" max="999" required /></label>
+              <label>Jogos<input id="statGames" type="number" inputmode="numeric" min="0" max="999" required /></label>
+              <label>Vitórias<input id="statWins" type="number" inputmode="numeric" min="0" max="999" required /></label>
+              <label>Empates<input id="statDraws" type="number" inputmode="numeric" min="0" max="999" required /></label>
+              <label>Derrotas<input id="statLosses" type="number" inputmode="numeric" min="0" max="999" required /></label>
+              <label>Gols<input id="statGoals" type="number" inputmode="numeric" min="0" max="999" required /></label>
+              <label>Assistências<input id="statAssists" type="number" inputmode="numeric" min="0" max="999" required /></label>
             </div>
             <p class="muted small">As estatísticas manuais afetam apenas o ranking anual; o mensal considera partidas registradas.</p>
             <button class="button primary" type="submit">Salvar estatísticas</button>
@@ -352,7 +398,7 @@
           <h2 id="stats-page-title">Stats do jogador</h2>
           <p class="muted">Escolha seu nome e veja seus números nas partidas registradas.</p>
         </div>
-        <div class="card stats-filters">
+        <div class="stats-filters">
           <label for="playerStatsSelect">Jogador
             <select id="playerStatsSelect"></select>
           </label>

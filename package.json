@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node build.mjs && node scripts/local-server.mjs",
-    "test": "node scripts/build-vercel.mjs && node tests/three-team.mjs && node tests/artwork.mjs && node tests/vercel-supabase.mjs",
+    "test": "node scripts/build-vercel.mjs && node tests/three-team.mjs && node tests/artwork.mjs && node tests/vercel-supabase.mjs && node tests/frontend-contract.mjs",
     "build:vercel": "node scripts/build-vercel.mjs",
     "admin:credentials": "node scripts/admin-credentials.mjs"
   }

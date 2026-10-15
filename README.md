@@ -4,6 +4,14 @@ O repositório está adaptado para publicar uma cópia independente na Vercel, c
 
 Veja o [guia de deploy](docs/VERCEL-SUPABASE.md) para configurar o novo projeto.
 
+## Identidade visual do clube
+
+O frontend usa o remake visual do FC Bagres: camisa vinho, escudo, fonte Archivo local, detalhes dourados, equipes com textura de losangos e animações com suporte a movimento reduzido. A navegação mantém Início, Partida, Ranking, Stats, Destaques e Transparência, além do elenco no modo admin. No celular, todas as seções ficam acessíveis na barra inferior.
+
+`ui.js` cuida apenas de animações e navegação visual; `app.js` e `artwork.js` mantêm as regras atuais, inclusive três times, nove jogos, seleção de mensalistas, histórico, gráficos, conquistas e arte dos times. O backend continua usando Supabase. O build reúne os três scripts e publica fontes, ícones e manifesto sem dependências adicionais.
+
+Os testes incluem o contrato entre a interface e os controles do aplicativo, além das regras de futebol, artes e integração com Supabase.
+
 ## Como abrir
 
 1. Instale o **Node.js 24 ou superior**: https://nodejs.org/ (inclui o npm).

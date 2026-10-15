@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, pbkdf2Sync } from 'node:crypto';
 import worker from '../dist/server/index.js';
@@ -71,6 +71,20 @@ const env = { DB, BUCKET, ADMIN_PASSWORD_HASH: config.hash, ADMIN_SESSION_KEY: c
 const port = Number(process.env.PORT || 8787);
 const server = createServer(async (incoming, outgoing) => {
   try {
+    // Match Vercel's static asset serving for the local preview.
+    const pathname=new URL(incoming.url,`http://localhost:${port}`).pathname;
+    if (incoming.method==='GET' && (pathname.startsWith('/assets/') || pathname==='/manifest.webmanifest')) {
+      const asset=resolve(root,'.'+decodeURIComponent(pathname));
+      if (asset!==resolve(root,'manifest.webmanifest') && !asset.startsWith(resolve(root,'assets')+sep)) {
+        outgoing.writeHead(404);outgoing.end();return;
+      }
+      const types={'.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.webmanifest':'application/manifest+json','.txt':'text/plain; charset=utf-8'};
+      const type=types[extname(asset)];
+      if (!type) {outgoing.writeHead(404);outgoing.end();return;}
+      try {const bytes=await readFile(asset);outgoing.writeHead(200,{'Content-Type':type,'X-Content-Type-Options':'nosniff'});outgoing.end(bytes);}
+      catch {outgoing.writeHead(404);outgoing.end();}
+      return;
+    }
     const chunks = []; let size = 0;
     for await (const chunk of incoming) {
       size += chunk.length;
