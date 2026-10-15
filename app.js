@@ -195,35 +195,196 @@ function render() {
 function recordedGameCount(matches) {
   return matches.filter(match => !match.roundId).length + new Set(matches.filter(match => match.roundId).map(match => match.roundId)).size;
 }
+// ---------- Início ----------
+const homeDate = (value, options) => new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", options);
+const homeWeekday = value => homeDate(value, { weekday: "long" }).replace("-feira", "");
+const homeDayLabel = value => {
+  const sameYear = value.slice(0, 4) === currentYearValue();
+  return `${homeWeekday(value)}, ${homeDate(value, sameYear ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" })}`;
+};
+const homeCount = (value, singular, plural) => `${value} ${value === 1 ? singular : plural}`;
+const homePlayer = id => state.players.find(player => player.id === id) || { id, name: "Jogador removido" };
+const homeKitKey = key => ["A", "B", "C"].includes(key) ? key.toLowerCase() : "a";
+
+// Craque e Bagre do dia de jogo mais recente que já tem os dois escolhidos.
+function homeAwardDays() {
+  const days = [];
+  for (const round of state.rounds || []) {
+    if (!round.closed || !round.mvpPlayerId || !round.bolaMurchaPlayerId) continue;
+    days.push({
+      date: round.date, mvpId: round.mvpPlayerId, bagreId: round.bolaMurchaPlayerId,
+      line: id => ({ goals: Number(round.contributions?.[id]?.goals) || 0, assists: Number(round.contributions?.[id]?.assists) || 0 }),
+      team: id => round.names[["A", "B", "C"].find(key => round.teams[key]?.includes(id))] || ""
+    });
+  }
+  const byDate = new Map();
+  state.matches.forEach(match => {
+    if (match.roundId || !match.date) return;
+    if (!byDate.has(match.date)) byDate.set(match.date, []);
+    byDate.get(match.date).push(match);
+  });
+  for (const [date, matches] of byDate) {
+    // Com mais de uma partida no dia, vale quem foi escolhido mais vezes; no empate, a mais recente.
+    const pick = field => {
+      const counts = new Map();
+      matches.forEach(match => { if (match[field]) counts.set(match[field], (counts.get(match[field]) || 0) + 1); });
+      return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    };
+    const mvpId = pick("mvpPlayerId"), bagreId = pick("bolaMurchaPlayerId");
+    if (!mvpId || !bagreId) continue;
+    days.push({
+      date, mvpId, bagreId,
+      line: id => matches.reduce((sum, match) => ({ goals: sum.goals + (Number(match.contributions?.[id]?.goals) || 0), assists: sum.assists + (Number(match.contributions?.[id]?.assists) || 0) }), { goals: 0, assists: 0 }),
+      team: id => { const match = matches.find(item => item.teamA.includes(id) || item.teamB.includes(id)); return match ? (match.teamA.includes(id) ? match.teamAName : match.teamBName) : ""; }
+    });
+  }
+  return days.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function homeAwardFigure(kind, playerId, day) {
+  const player = homePlayer(playerId);
+  const { goals, assists } = day.line(playerId);
+  const numbers = [goals && homeCount(goals, "gol", "gols"), assists && homeCount(assists, "assistência", "assistências")].filter(Boolean);
+  const detail = numbers.length ? numbers.join(" · ") : kind === "craque" ? "Escolhido o melhor em campo" : "Passou em branco";
+  const team = day.team(playerId);
+  const photo = player.photoKey
+    ? `<img src="${photoUrl(player)}" alt="Foto de ${escapeHtml(player.name)}" decoding="async" />`
+    : `<span class="award-initials" aria-hidden="true">${escapeHtml(initials(player.name))}</span>`;
+  const title = kind === "craque" ? "Craque da semana" : "Bagre da semana";
+  return `<figure class="award award-${kind}">
+    <div class="award-photo">${photo}${kind === "bagre" ? '<span class="award-stamp" aria-hidden="true">Bagre</span>' : ""}</div>
+    <figcaption>
+      <span class="award-title"><svg class="icon" aria-hidden="true"><use href="#i-${kind === "craque" ? "crown" : "catfish"}" /></svg>${title}</span>
+      <strong class="award-name">${escapeHtml(player.name)}</strong>
+      <span class="award-detail">${detail}</span>
+      ${team ? `<span class="award-team">${escapeHtml(team)}</span>` : ""}
+    </figcaption>
+  </figure>`;
+}
+
+function renderHomeAwards() {
+  const day = homeAwardDays()[0];
+  $("#homeAwardsDate").textContent = day ? `Jogo de ${homeDayLabel(day.date)}` : "";
+  $("#homeAwards").innerHTML = day
+    ? homeAwardFigure("craque", day.mvpId, day) + homeAwardFigure("bagre", day.bagreId, day)
+    : ["craque", "bagre"].map(kind => `<figure class="award award-${kind} is-vacant">
+      <div class="award-photo"><span class="award-initials" aria-hidden="true">?</span></div>
+      <figcaption>
+        <span class="award-title"><svg class="icon" aria-hidden="true"><use href="#i-${kind === "craque" ? "crown" : "catfish"}" /></svg>${kind === "craque" ? "Craque" : "Bagre"} da semana</span>
+        <strong class="award-name">Ainda sem dono</strong>
+        <span class="award-team">Sai junto com o primeiro placar registrado.</span>
+      </figcaption>
+    </figure>`).join("");
+}
+
+function renderHomePodium(field, target, singular, plural, monthName, stats) {
+  const sorted = state.players
+    .map(player => ({ player, value: stats.get(player.id)?.[field] || 0 }))
+    .filter(entry => entry.value > 0)
+    .sort((a, b) => b.value - a.value || a.player.name.localeCompare(b.player.name, "pt-BR"));
+  let rank = 0;
+  const ranked = sorted.map((entry, index) => { if (!index || entry.value !== sorted[index - 1].value) rank = index + 1; return { ...entry, rank }; }).filter(entry => entry.rank <= 3);
+  if (!ranked.length) {
+    $(target).innerHTML = `<li class="podium-empty">${field === "goals" ? "Ninguém balançou a rede" : "Ninguém deu assistência"} em ${monthName} ainda.</li>`;
+    return;
+  }
+  const steps = [0, 1, 2].map(slot => {
+    const entry = ranked[slot];
+    if (!entry) return `<li class="podium-step slot-${slot + 1} rank-${slot + 1} is-vacant" aria-hidden="true"><span class="podium-block">${slot + 1}</span></li>`;
+    const { player, value } = entry;
+    return `<li class="podium-step slot-${slot + 1} rank-${entry.rank}">
+      ${playerAvatar(player, "podium-face")}
+      <b class="podium-name">${escapeHtml(player.name)}</b>
+      <span class="podium-value"><strong>${value}</strong> ${value === 1 ? singular : plural}</span>
+      <span class="podium-block" aria-hidden="true">${entry.rank}</span>
+      <span class="visually-hidden">${entry.rank}º lugar</span>
+    </li>`;
+  });
+  const extra = ranked.length - 3;
+  $(target).innerHTML = steps.join("") + (extra > 0 ? `<li class="podium-more">E mais ${homeCount(extra, "empatado", "empatados")} com ${homeCount(ranked[2].value, singular, plural)}.</li>` : "");
+}
+
+function renderHomeLineup() {
+  $("#homeMatchDate").textContent = state.matchDate ? homeDayLabel(state.matchDate) : "";
+  const defaults = { A: "Time Azul", B: "Time Branco", C: "Time Verde" };
+  const teams = activeTeamKeys().map(key => ({ key, name: currentRound()?.names[key] || state[`team${key}Name`] || defaults[key], players: entryPlayers(key) }));
+  if (teams.some(team => team.players.length)) {
+    $("#homeTeams").innerHTML = `<div class="lineup-grid teams-${teams.length}">${teams.map(team => `<article class="sheet sheet-${homeKitKey(team.key)}">
+      <header class="sheet-head"><b>${escapeHtml(team.name)}</b><span>${homeCount(team.players.length, "jogador", "jogadores")}</span></header>
+      ${team.players.length
+        ? `<ul class="sheet-list">${team.players.map(player => `<li>${playerAvatar(player)}<span class="sheet-player">${escapeHtml(player.name)}</span>${player.fixedGoalkeeper ? '<span class="sheet-keeper">Goleiro</span>' : ""}</li>`).join("")}</ul>`
+        : '<p class="sheet-empty">Aguardando escalação</p>'}
+    </article>`).join("")}</div>`;
+    return;
+  }
+  const confirmed = availablePlayers();
+  $("#homeTeams").innerHTML = confirmed.length
+    ? `<p class="lineup-note">${homeCount(confirmed.length, "confirmado", "confirmados")}. Os times ainda não foram montados.</p><ul class="confirmed-list">${confirmed.map(player => `<li>${playerAvatar(player)}<span>${escapeHtml(player.name)}</span></li>`).join("")}</ul>`
+    : '<p class="lineup-note">Ninguém confirmado ainda. Os times aparecem aqui quando a diretoria montar a escalação.</p>';
+}
+
+function renderHomeResults() {
+  const latest = state.matches.reduce((max, match) => (match.date || "") > max ? match.date : max, "");
+  $("#homeResultsDate").textContent = latest ? homeDayLabel(latest) : "";
+  if (!latest) {
+    $("#homeMatches").innerHTML = '<p class="results-empty">Os placares aparecem aqui quando a primeira partida for registrada.</p>';
+    return;
+  }
+  const round = (state.rounds || []).find(item => item.date === latest);
+  const matches = state.matches
+    .map((match, index) => ({ match, index }))
+    .filter(({ match }) => match.date === latest)
+    // Rodada: ordem da tabela de jogos. Dois times: mais antiga primeiro.
+    .sort((a, b) => (a.match.scheduleIndex ?? -a.index) - (b.match.scheduleIndex ?? -b.index))
+    .map(({ match }) => match);
+  const rows = matches.map(match => {
+    const a = Number(match.scoreA), b = Number(match.scoreB);
+    const outcome = (mine, theirs) => mine > theirs ? "won" : mine < theirs ? "lost" : "";
+    return `<li class="score-row">
+      ${match.roundId ? `<span class="score-game"><span class="visually-hidden">Jogo </span>${match.scheduleIndex + 1}</span>` : ""}
+      <span class="score-team home ${outcome(a, b)}"><span>${escapeHtml(match.teamAName)}</span><i class="kit kit-${homeKitKey(match.teamAKey || "A")}" aria-hidden="true"></i></span>
+      <span class="score-box">${a}<span class="score-x" aria-hidden="true">×</span><span class="visually-hidden"> a </span>${b}</span>
+      <span class="score-team away ${outcome(b, a)}"><i class="kit kit-${homeKitKey(match.teamBKey || "B")}" aria-hidden="true"></i><span>${escapeHtml(match.teamBName)}</span></span>
+    </li>`;
+  }).join("");
+  let aside;
+  if (round) {
+    const standings = roundStandings(round);
+    aside = `<div class="day-aside"><h4>${round.closed ? "Classificação do dia" : "Rodada em andamento"}</h4><ol class="day-standings">${standings.map((row, index) => {
+      const champion = round.closed && round.championTeam === row.key;
+      return `<li class="${champion ? "is-champion" : ""}"><span class="day-pos">${index + 1}</span><i class="kit kit-${homeKitKey(row.key)}" aria-hidden="true"></i><b>${escapeHtml(row.name)}</b>${champion ? '<span class="day-champion"><svg class="icon" aria-hidden="true"><use href="#i-trophy" /></svg>Campeão</span>' : ""}<span class="day-points"><strong>${row.points}</strong> pts</span></li>`;
+    }).join("")}</ol><p class="day-foot">${homeCount(roundMatches(round).length, "jogo", "jogos")} de 10 minutos</p></div>`;
+  } else {
+    const totals = new Map();
+    matches.forEach(match => Object.entries(match.contributions || {}).forEach(([id, line]) => {
+      const sum = totals.get(id) || { goals: 0, assists: 0 };
+      sum.goals += Number(line.goals) || 0; sum.assists += Number(line.assists) || 0;
+      totals.set(id, sum);
+    }));
+    const scorers = [...totals].filter(([, line]) => line.goals || line.assists).sort((a, b) => b[1].goals - a[1].goals || b[1].assists - a[1].assists || homePlayer(a[0]).name.localeCompare(homePlayer(b[0]).name, "pt-BR"));
+    aside = `<div class="day-aside"><h4>Quem decidiu</h4>${scorers.length
+      ? `<ul class="day-scorers">${scorers.map(([id, line]) => { const player = homePlayer(id); return `<li>${playerAvatar(player)}<b>${escapeHtml(player.name)}</b><span>${[line.goals && homeCount(line.goals, "gol", "gols"), line.assists && homeCount(line.assists, "assist.", "assist.")].filter(Boolean).join(" · ")}</span></li>`; }).join("")}</ul>`
+      : '<p class="day-foot">Sem gols ou assistências individuais registrados.</p>'}</div>`;
+  }
+  $("#homeMatches").innerHTML = `<div class="results-body"><ol class="scoreboard ${round ? "is-round" : matches.length === 1 ? "is-single" : ""}">${rows}</ol>${aside}</div>`;
+}
+
 function renderHome() {
   const month = currentMonthValue();
+  const monthName = homeDate(`${month}-01`, { month: "long" });
   const monthlyMatches = state.matches.filter(match => match.date?.startsWith(month));
   const stats = rankingStatsForMatches(monthlyMatches);
-  const dateLabel = value => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Sem data";
-  $("#homeMonthLabel").textContent = new Date(`${month}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  $("#homeSummary").innerHTML = [[recordedGameCount(monthlyMatches), "jogos no mês"], [monthlyMatches.reduce((sum, match) => sum + Number(match.scoreA) + Number(match.scoreB), 0), "gols no mês"], [availablePlayers().length, "confirmados na escalação"]].map(([value, label]) => `<div><strong>${value}</strong><span>${label}</span></div>`).join("");
-  const recent = state.matches.map((match, index) => ({match, index})).sort((a, b) => b.match.date.localeCompare(a.match.date) || a.index - b.index).slice(0, 3).map(entry => entry.match);
-  $("#homeMatches").innerHTML = recent.length ? recent.map((match, index) => {
-    const dayAwards = state.rounds?.find(round => round.id === match.roundId && round.closed) || match;
-    const awards = [[dayAwards.mvpPlayerId, match.roundId ? "MVP do dia" : "MVP da partida", "mvp"], [dayAwards.bolaMurchaPlayerId, match.roundId ? "Bagre do dia" : "Bagre da partida", "bagre"]].map(([id, label, kind]) => {
-      const player = state.players.find(player => player.id === id);
-      return player ? `<div class="home-award home-award-${kind}">${playerAvatar(player)}<span><small>${label}</small><b>${escapeHtml(player.name)}</b></span></div>` : '';
-    }).filter(Boolean).join('');
-    return `<div class="home-result ${index === 0 ? "latest-result" : ""}"><div class="home-result-meta"><span>${dateLabel(match.date)}</span>${index === 0 ? '<span class="pill">Última partida</span>' : ''}</div><div class="home-score"><b>${escapeHtml(match.teamAName)}</b><strong><span>${Number(match.scoreA)}</span><small>×</small><span>${Number(match.scoreB)}</span></strong><b>${escapeHtml(match.teamBName)}</b></div>${dayAwards.championTeam ? `<p class="round-champion">🏆 Campeão do dia: <b>${escapeHtml(dayAwards.names[dayAwards.championTeam])}</b></p>` : ""}${awards ? `<div class="home-awards">${awards}</div>` : ''}${matchContributionDetails(match)}</div>`;
-  }).join("") : '<p class="empty-state">Os placares aparecerão aqui quando a primeira partida for registrada.</p>';
-  $("#homeMatchDate").textContent = dateLabel(state.matchDate);
-  $("#homeTeams").innerHTML = activeTeamKeys().map(key => [key, currentRound()?.names[key] || state[`team${key}Name`]]).map(([team, name]) => {
-    const players = entryPlayers(team);
-    return `<div class="home-team home-team-${team.toLowerCase()}"><div><b>${escapeHtml(name)}</b><span>${players.length} ${players.length === 1 ? "jogador" : "jogadores"}</span></div><div class="home-team-faces">${players.slice(0, 5).map(player => playerAvatar(player)).join("")}${players.length > 5 ? `<span class="avatar">+${players.length - 5}</span>` : ''}</div><p>${players.length ? players.map(player => escapeHtml(player.name) + (player.fixedGoalkeeper ? ' (GOL)' : '')).join(' · ') : 'Aguardando escalação'}</p></div>`;
-  }).join("");
-  const leaders = (field, target, label) => {
-    const sorted = state.players.map(player => ({player, value:stats.get(player.id)?.[field] || 0})).filter(entry => entry.value > 0).sort((a,b) => b.value - a.value || a.player.name.localeCompare(b.player.name, "pt-BR"));
-    let rank = 0;
-    const top = sorted.map((entry,index) => { if (!index || entry.value !== sorted[index-1].value) rank = index + 1; return {...entry, rank}; }).filter(entry => entry.rank <= 3);
-    $(target).innerHTML = top.length ? top.map(({player,value,rank}) => `<li class="home-leader"><span class="home-rank">${rank}º</span>${playerAvatar(player, 'roster-avatar')}<b>${escapeHtml(player.name)}</b><span class="home-leader-value"><strong>${value}</strong><small>${label}</small></span></li>`).join('') : `<li class="empty-state">Sem ${label} individuais registrados neste mês.</li>`;
-  };
-  leaders('goals', '#homeGoals', 'gols');
-  leaders('assists', '#homeAssists', 'assistências');
+  renderHomeAwards();
+  $$("[data-home-month]").forEach(element => { element.textContent = `de ${monthName}`; });
+  renderHomePodium("goals", "#homeGoals", "gol", "gols", monthName, stats);
+  renderHomePodium("assists", "#homeAssists", "assistência", "assistências", monthName, stats);
+  const games = recordedGameCount(monthlyMatches);
+  const goals = monthlyMatches.reduce((sum, match) => sum + Number(match.scoreA) + Number(match.scoreB), 0);
+  const confirmed = availablePlayers().length;
+  const nextDay = state.matchDate ? homeWeekday(state.matchDate) : "";
+  $("#homeSummary").innerHTML = `<span class="month-line-month">${monthName[0].toUpperCase()}${monthName.slice(1)}</span> até agora: <b>${games}</b> ${games === 1 ? "jogo" : "jogos"} e <b>${goals}</b> ${goals === 1 ? "gol" : "gols"}. ${nextDay ? `Na escalação de ${nextDay}` : "Na escalação"}, <b>${confirmed}</b> ${confirmed === 1 ? "confirmado" : "confirmados"}.`;
+  renderHomeLineup();
+  renderHomeResults();
 }
 
 function currentMonthValue() {

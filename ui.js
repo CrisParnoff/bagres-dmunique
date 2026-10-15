@@ -201,6 +201,11 @@
     });
   }
 
+  // ---------- Mascote ----------
+  // Toque/clique: ele comemora e depois volta a gingar.
+  const mascot = qs("#homeMascot");
+  mascot?.addEventListener("click", () => replayClass(mascot, "cheer", 850));
+
   // ---------- Escudo ----------
   const crest = qs(".brand-crest");
   crest?.addEventListener("click", () => replayClass(crest, "shine", 1200));

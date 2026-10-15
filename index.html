@@ -85,20 +85,48 @@
       </form>
       <div class="card import-note hidden admin-only" id="importNote">Há dados deste navegador anteriores à versão com admin. <button class="button secondary" id="importLocal" type="button">Importar dados deste navegador</button></div>
       <section id="inicio" class="view active" aria-labelledby="inicio-title">
-        <div class="hero home-intro home-intro-with-mascot">
-          <div class="home-intro-copy"><p class="eyebrow">FC BAGRES D’MUNIQUE</p><h2 id="inicio-title">Dentro de quadra</h2><p class="muted" id="homeMonthLabel"></p><button class="button primary" type="button" data-home-tab="partida">Ver times da semana</button></div>
-          <img class="home-mascot" src="__FCBAGRES_MASCOT_DATA_URI__" width="640" height="640" alt="Mascote do FC Bagres D’Munique com o uniforme vermelho" decoding="async" />
+        <div class="resenha">
+          <div class="resenha-head">
+            <h2 id="inicio-title">Resenha da semana</h2>
+            <p class="resenha-date" id="homeAwardsDate"></p>
+          </div>
+          <div class="resenha-awards" id="homeAwards"></div>
+          <div class="home-mascot" id="homeMascot">
+            <img src="__FCBAGRES_MASCOT_DATA_URI__" width="640" height="640" alt="Mascote do FC Bagres D’Munique, um bagre com o uniforme vermelho, apontando para quem levou o Bagre" decoding="async" />
+          </div>
         </div>
-        <div id="homeSummary" class="home-summary"></div>
-        <div class="home-main-grid">
-          <article class="card home-results"><div class="section-heading"><div><p class="eyebrow">APITO FINAL</p><h3>Últimos jogos</h3></div><button class="text-button" type="button" data-home-tab="ranking" data-home-history>Ver histórico</button></div><div id="homeMatches"></div></article>
-          <article class="card home-lineup"><div class="section-heading"><div><p class="eyebrow">ESCALAÇÃO ATUAL</p><h3>Times da semana</h3></div><span class="pill" id="homeMatchDate"></span></div><div id="homeTeams"></div><button class="button ghost" type="button" data-home-tab="partida">Ver escalação completa</button></article>
+
+        <div class="podiums">
+          <section class="podium podium-goals" aria-labelledby="podium-goals-title">
+            <h3 id="podium-goals-title">Artilheiros <span class="podium-month" data-home-month></span></h3>
+            <ol class="podium-steps" id="homeGoals"></ol>
+          </section>
+          <section class="podium podium-assists" aria-labelledby="podium-assists-title">
+            <h3 id="podium-assists-title">Pifadores <span class="podium-month" data-home-month></span></h3>
+            <ol class="podium-steps" id="homeAssists"></ol>
+          </section>
+          <button class="text-button podiums-link" type="button" data-home-tab="destaques">Ver todos os destaques do mês</button>
         </div>
-        <div class="home-leaders-grid">
-          <article class="card home-leaders"><div class="section-heading"><div><p class="eyebrow">TOP 3 DO MÊS</p><h3>Artilheiros</h3></div><span class="home-metric-mark" aria-hidden="true">G</span></div><ol id="homeGoals" class="home-leader-list"></ol></article>
-          <article class="card home-leaders assist-leaders"><div class="section-heading"><div><p class="eyebrow">TOP 3 DO MÊS</p><h3>Pifadores</h3></div><span class="home-metric-mark" aria-hidden="true">A</span></div><ol id="homeAssists" class="home-leader-list"></ol></article>
-        </div>
-        <div class="home-footer"><p class="muted small">Os destaques usam as partidas registradas neste mês.</p><button class="text-button" type="button" data-home-tab="destaques">Todos os destaques</button></div>
+
+        <p class="month-line" id="homeSummary"></p>
+
+        <section class="lineup" aria-labelledby="lineup-title">
+          <div class="home-head">
+            <h3 id="lineup-title">Escalação da semana</h3>
+            <span class="home-head-date" id="homeMatchDate"></span>
+            <button class="text-button" type="button" data-home-tab="partida">Ver na Partida</button>
+          </div>
+          <div id="homeTeams"></div>
+        </section>
+
+        <section class="results" aria-labelledby="results-title">
+          <div class="home-head">
+            <h3 id="results-title">Últimas partidas</h3>
+            <span class="home-head-date" id="homeResultsDate"></span>
+            <button class="text-button" type="button" data-home-tab="ranking" data-home-history>Ver histórico</button>
+          </div>
+          <div id="homeMatches"></div>
+        </section>
       </section>
       <section id="partida" class="view" aria-labelledby="partida-title">
         <div class="hero">
