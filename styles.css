@@ -2683,14 +2683,13 @@ textarea::placeholder { color: #a98288; }
    · fios de 1px no lugar de cartões (listas, tabelas e seções sem caixa);
    · um traço curto dourado na cabeça de cada seção, que se desenha ao abrir a aba;
    · número grande ao lado da frase; coluna da tabela em destaque;
-   · recorte diagonal no canto das fotos; sombra tingida de vinho, nunca preta;
+   · sombra tingida de vinho, nunca preta;
    · menu com sublinhado, sem pílula.
-   Nenhuma moldura tem canto arredondado.
+   Os cantos seguem a escala do bloco "Cantos", no fim do arquivo.
    ========================================================================= */
 :root {
   --shadow: 0 18px 36px -26px rgba(26, 0, 6, .95);
   --head-mark: var(--gold);
-  --cut: polygon(0 0, 100% 0, 100% 100%, 13% 100%, 0 87%);
   --rule-head: linear-gradient(var(--gold), var(--gold)) left top / 52px 3px no-repeat,
                linear-gradient(var(--line-2), var(--line-2)) left top / 100% 1px no-repeat;
 }
@@ -2885,7 +2884,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 .player-form { background: #1a0206; }
 .roster-row { background: var(--panel); border-color: var(--line); box-shadow: none; }
 .roster-row:hover { border-color: var(--gold-lo); }
-.roster-avatar { clip-path: var(--cut); }
 
 /* ---------- Ranking ---------- */
 .ranking-podium { gap: 8px; }
@@ -2933,7 +2931,6 @@ tr.leader td { background: rgba(216, 180, 110, .06); }
 /* ---------- Stats do jogador ---------- */
 .player-stats-profile { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--gold); box-shadow: none; }
 .player-card-photo { background: #3a0711; }
-.player-card-portrait { clip-path: var(--cut); }
 .player-card-heading { border-bottom-color: var(--line-2); }
 .player-card-metrics { gap: 18px 22px; }
 .player-card-metric {
@@ -3077,3 +3074,71 @@ tr.leader td { background: rgba(216, 180, 110, .06); }
   background: var(--rule-head);
   pointer-events: none;
 }
+
+
+/* =========================================================================
+   Cantos — escala única, decidida pelo papel de cada peça:
+   · reto (0): menu de abas, fios, linhas de lista e tabelas, faixas que
+     encostam na borda, e os losangos da camisa;
+   · 6px: etiquetas pequenas, notas e caixas de seleção;
+   · 10px: tudo que se clica ou preenche (botões, campos, selects);
+   · 14px: caixas de conteúdo (times, placar, figurinhas, painéis);
+   · 18px: o que flutua sobre a página (pop-ups e login);
+   · redondo: rostos dos jogadores, pílulas e o número de confirmados.
+   ========================================================================= */
+:root {
+  --r-xs: 6px;
+  --r-ctl: 10px;
+  --r-box: 14px;
+  --r-pop: 18px;
+  --radius-sm: var(--r-xs);
+  --radius: var(--r-ctl);
+  --radius-lg: var(--r-box);
+}
+
+/* Controles */
+.button, input, select, textarea, .mini-button, .gear-button, .dialog-close, .icon-button,
+.score-inputs input, .round-game input, .contribution-row input { border-radius: var(--r-ctl); }
+.team-name { border-radius: 0; }
+input[type="checkbox"] { border-radius: var(--r-xs); }
+.keeper-choice input[type="checkbox"] { border-radius: 5px; }
+body:not(.admin-mode) .availability-label input:disabled { border-radius: 50%; }
+input[type="file"]::file-selector-button { border-radius: 7px; }
+.text-button { border-radius: var(--r-xs); }
+
+/* Etiquetas e notas pequenas */
+.rating, .admin-tag, .award-stamp, .match-score, .form-error, .achievement-icon,
+.team-a .empty-state, .team-b .empty-state, .team-c .empty-state, .monthly-empty { border-radius: var(--r-xs); }
+
+/* Pílulas */
+.pill, .access-note, .balance-strip, .match-date-label:not(:empty), .swap-button, .keeper-badge,
+.sheet-keeper, .cash-count, .confirmed-list li, .toast, body.admin-mode .brand-tag::after,
+.achievement progress { border-radius: 999px; }
+/* Pseudo-elementos de navegador ficam em regras próprias: um seletor desconhecido derruba a regra inteira. */
+.achievement progress::-webkit-progress-bar { border-radius: 999px; }
+.achievement progress::-webkit-progress-value { border-radius: 999px; }
+.achievement progress::-moz-progress-bar { border-radius: 999px; }
+
+/* Rostos */
+.avatar, .podium-face, .podium-avatar, .hero-stat { border-radius: 50%; }
+
+/* Caixas de conteúdo */
+.team-card, .sheet, .scoreboard, .match-toolbar, .score-card, .score-inputs, .contribution-team,
+.match-awards, .roster-row, .player-stats-profile, .artwork-panel, .artwork-preview, .player-form,
+.stats-form, .transparency-sheet, .ai-note, .cash-error, .cash-skeleton span, .achievement-category,
+.achievement-empty, #playerStatsEmpty:not(.hidden), .round-champion, .import-note { border-radius: var(--r-box); }
+.award-photo, .month-board, .cash-balance { border-radius: var(--r-box); }
+.month-board::before, .cash-balance::before { border-radius: 9px; }
+.award-bagre .award-photo { border-radius: 12px; }
+
+/* Pódios: só o topo do degrau é arredondado. */
+.podium-player { border-radius: 12px 12px 0 0; }
+.podium-block { border-radius: 8px 8px 0 0; }
+
+/* Losangos do clube: quinas firmes, levemente aparadas. */
+.versus::before { border-radius: 5px; }
+.ai-alert-mark { border-radius: 12px; }
+.kit, .confetti { border-radius: 2px; }
+
+/* Flutuantes */
+.app-dialog, .password-form { border-radius: var(--r-pop); }

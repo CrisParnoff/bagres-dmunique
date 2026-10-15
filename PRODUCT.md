@@ -35,7 +35,7 @@ Resenha de vestiário. Zoeira raiz, orgulho de clube amador.
 2. **Pessoas antes de números.** Foto e nome do jogador carregam a tela; estatística é o motivo da foto estar ali.
 3. **Hierarquia de resenha.** O que a galera comenta primeiro vem primeiro e maior: craque e Bagre, depois artilharia, depois o resto.
 4. **Variar a forma conforme o conteúdo.** Pódio parece pódio, placar parece placar, escalação parece time. Nada de uma caixa igual para tudo.
-5. **Fios, não caixas.** Seções e listas se separam por fios de 1px, com um traço curto dourado na cabeça de cada seção. Nenhuma moldura tem canto arredondado; caixa só onde há interação (campos, botões, diálogos) ou identidade (times, placar, saldo).
+5. **Fios, não caixas.** Seções e listas se separam por fios de 1px, com um traço curto dourado na cabeça de cada seção. Caixa só onde há interação (campos, botões, diálogos) ou identidade (times, placar, saldo, figurinhas). Cantos com moderação: retos no menu, nos fios e nos losangos do clube; arredondamento discreto nas caixas, conforme o tamanho; redondo só em rostos e etiquetas.
 6. **Movimento com motivo.** Animação marca um momento (o pódio subindo, o mascote vivo), nunca vira papel de parede.
 
 ## Accessibility & Inclusion
