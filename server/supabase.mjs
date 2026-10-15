@@ -1,12 +1,14 @@
 // Server-only bridge: keep the existing football rules and D1/R2 interface.
 export function createSupabaseEnv(config = process.env, fetcher = fetch) {
   const base = config.SUPABASE_URL?.replace(/\/$/, '');
-  const secret = config.SUPABASE_SERVICE_ROLE_KEY;
+  const secret = config.SUPABASE_SECRET_KEY || config.SUPABASE_SERVICE_ROLE_KEY;
   if (!base || !secret || !config.ADMIN_PASSWORD_HASH || !config.ADMIN_SESSION_KEY) throw new Error('Missing server configuration');
+  if (!secret.startsWith('sb_secret_') && !secret.startsWith('eyJ')) throw new Error('A Supabase server secret key is required');
   const url = new URL(base);
   if (url.protocol !== 'https:') throw new Error('SUPABASE_URL must use HTTPS');
   const bucket = config.SUPABASE_STORAGE_BUCKET || 'bagres-player-photos';
-  const headers = { apikey: secret, Authorization: `Bearer ${secret}` };
+  // New opaque secret keys authenticate through apikey, not as a JWT bearer.
+  const headers = { apikey: secret, ...(secret.startsWith('eyJ') ? {Authorization:`Bearer ${secret}`} : {}) };
   async function call(path, options = {}, allowMissing = false) {
     const response = await fetcher(`${base}${path}`, { ...options, headers: { ...headers, ...options.headers }, signal: AbortSignal.timeout(15000) });
     if (allowMissing && response.status === 404) return null;
@@ -61,7 +63,20 @@ export function createSupabaseEnv(config = process.env, fetcher = fetch) {
     async get(key) {
       const response = await call(`/storage/v1/object/authenticated/${objectPath(key)}`, {}, true);
       if (!response) return null;
-      return {body:response.body,httpMetadata:{contentType:response.headers.get('Content-Type')?.split(';')[0]}};
+      const contentType=response.headers.get('Content-Type')?.split(';')[0];
+      // Dashboard imports of extensionless R2 keys can retain a generic MIME.
+      // Recover only recognized image signatures; never serve arbitrary binary.
+      if (['application/octet-stream','binary/octet-stream'].includes(contentType)) {
+        if (Number(response.headers.get('Content-Length')) > 2*1024*1024) return null;
+        const bytes=new Uint8Array(await response.arrayBuffer());
+        if (bytes.length > 2*1024*1024) return null;
+        const starts=(signature,offset=0)=>signature.every((byte,index)=>bytes[offset+index]===byte);
+        const detected=starts([255,216,255]) ? 'image/jpeg'
+          : starts([137,80,78,71,13,10,26,10]) ? 'image/png'
+          : starts([82,73,70,70]) && starts([87,69,66,80],8) ? 'image/webp' : null;
+        return detected ? {body:bytes,httpMetadata:{contentType:detected}} : null;
+      }
+      return {body:response.body,httpMetadata:{contentType}};
     },
     async delete(key) {
       objectPath(key);

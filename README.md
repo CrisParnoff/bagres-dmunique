@@ -52,7 +52,7 @@ Referência técnica da execução local: https://nodejs.org/download/release/la
 
 ## Hospedagem e dados
 
-A base funcional veio da versão 48 do Sites. As adaptações para Vercel + Supabase estão apenas neste repositório. O banco D1, as fotos R2 e os segredos do site original não foram exportados. A cópia na Vercel inicia sem o histórico de produção até que façamos essa migração.
+A base funcional veio da versão 48 do Sites. As adaptações para Vercel + Supabase estão apenas neste repositório. Em 14/10/2026, o estado de dados da versão 233 e as 17 fotos dos jogadores foram copiados para o Supabase independente. Configure as variáveis de servidor da Vercel conforme o guia para consumir essa base. Os segredos e a hospedagem do site original permanecem separados.
 
 - `npm run build:vercel`: gera os arquivos estáticos em `public/` e compila o backend.
 - `npm test`: compila e verifica as regras e a integração com Supabase usando respostas simuladas.
@@ -61,4 +61,4 @@ A base funcional veio da versão 48 do Sites. As adaptações para Vercel + Supa
 - `server/supabase.mjs`: persistência PostgreSQL e fotos via APIs do Supabase.
 - `supabase/migrations/0001_bagres.sql`: tabelas, permissões, salvamento atômico e bucket privado.
 
-O login permanece por senha de administração com sessão assinada; esta primeira adaptação não substitui o login por Supabase Auth. A chave `service_role` só é usada no servidor. A execução local padrão continua usando SQLite e fotos locais.
+O login permanece por senha de administração com sessão assinada; esta integração não substitui o login por Supabase Auth. Configure `SUPABASE_URL` e `SUPABASE_SECRET_KEY` na Vercel; a chave `sb_secret_...` só é usada no servidor. A variável antiga `SUPABASE_SERVICE_ROLE_KEY` continua aceita como alternativa. A execução local padrão continua usando SQLite e fotos locais.

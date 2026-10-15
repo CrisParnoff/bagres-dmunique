@@ -5,13 +5,13 @@ import { createSupabaseEnv } from '../server/supabase.mjs';
 import { handleVercelRequest } from '../server/vercel-handler.mjs';
 import entry from '../api/[...path].js';
 const salt=Buffer.alloc(16,7), password='test-password-only';
-const config={SUPABASE_URL:'https://test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'server-test-key',ADMIN_SESSION_KEY:'test-session-secret',ADMIN_PASSWORD_HASH:salt.toString('hex')+':'+pbkdf2Sync(password,salt,100000,32,'sha256').toString('hex')};
+const config={SUPABASE_URL:'https://test.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_server-test-key',ADMIN_SESSION_KEY:'test-session-secret',ADMIN_PASSWORD_HASH:salt.toString('hex')+':'+pbkdf2Sync(password,salt,100000,32,'sha256').toString('hex')};
 let row=null;const attempts=new Map(),photos=new Map(),calls=[];
 const response=(value,status=200,headers={})=>new Response(value===null?null:JSON.stringify(value),{status,headers:{'Content-Type':'application/json',...headers}});
 async function upstream(url,options){
  const path=new URL(url).pathname,query=new URL(url).searchParams;
- assert.equal(options.headers.apikey,config.SUPABASE_SERVICE_ROLE_KEY);
- assert.equal(options.headers.Authorization,'Bearer '+config.SUPABASE_SERVICE_ROLE_KEY);
+ assert.equal(options.headers.apikey,config.SUPABASE_SECRET_KEY);
+ assert.equal(options.headers.Authorization,undefined);
  calls.push({path,options});
  const body=options.body && typeof options.body==='string'?JSON.parse(options.body):null;
  if(path==='/rest/v1/site_state')return response(row?[row]:[]);
@@ -64,13 +64,33 @@ for(const prefix of ['/player-photos/','/api/player-photos/']){
 }
 assert.equal((await run(request('/api/player-photo/delete','POST',{id:'p1',photoKey},admin))).status,200);
 assert.equal((await run(request('/player-photos/'+photoKey))).status,404);
+for(const [type,bytes] of [
+ ['image/jpeg',[255,216,255,224]],
+ ['image/png',[137,80,78,71,13,10,26,10]],
+ ['image/webp',[82,73,70,70,0,0,0,0,87,69,66,80]]
+]) {
+ photos.set(photoKey,{bytes:new Uint8Array(bytes),type:'binary/octet-stream'});
+ const migrated=await run(request('/player-photos/'+photoKey));
+ assert.equal(migrated.status,200);assert.equal(migrated.headers.get('Content-Type'),type);
+ assert.deepEqual([...new Uint8Array(await migrated.arrayBuffer())],bytes);
+}
+photos.set(photoKey,{bytes:new TextEncoder().encode('<script>alert(1)</script>'),type:'application/octet-stream'});
+assert.equal((await run(request('/player-photos/'+photoKey))).status,404,'unrecognized binary is never exposed as an image');
+photos.set(photoKey,{bytes:new Uint8Array(2*1024*1024+1),type:'binary/octet-stream'});
+assert.equal((await run(request('/player-photos/'+photoKey))).status,404,'oversized legacy images are rejected');
+photos.delete(photoKey);
 assert.equal((await run(request('/api/admin/logout','POST',{},admin))).status,200);
 const env=createSupabaseEnv(config,upstream);
 await assert.rejects(()=>env.BUCKET.get('../secret'));
 assert.throws(()=>createSupabaseEnv({}),/configuration/);
-const failure=await handleVercelRequest(request('/api/state'),{},upstream);assert.equal(failure.status,503);assert.ok(!(await failure.text()).includes(config.SUPABASE_SERVICE_ROLE_KEY));
+const failure=await handleVercelRequest(request('/api/state'),{},upstream);assert.equal(failure.status,503);assert.ok(!(await failure.text()).includes(config.SUPABASE_SECRET_KEY));
 const broken=await handleVercelRequest(request('/api/state'),config,async()=>response({message:'failure'},500));assert.equal(broken.status,503);
 const sql=readFileSync('supabase/migrations/0001_bagres.sql','utf8');assert.match(sql,/where id=1 and version=p_expected_version/);assert.match(sql,/from public, anon, authenticated/);
 const staticApp=readFileSync('public/app.js','utf8'),html=readFileSync('public/index.html','utf8');
-assert.ok(!staticApp.includes(config.SUPABASE_SERVICE_ROLE_KEY));assert.ok(!html.includes('__FCBAGRES_'));assert.match(html,/\/assets\/fcbagres-logo.webp/);
+assert.ok(!staticApp.includes(config.SUPABASE_SECRET_KEY));assert.ok(!html.includes('__FCBAGRES_'));assert.match(html,/\/assets\/fcbagres-logo.webp/);
+const legacyKey='eyJ.test-legacy-jwt';
+await createSupabaseEnv({...config,SUPABASE_SECRET_KEY:undefined,SUPABASE_SERVICE_ROLE_KEY:legacyKey},async(url,options)=>{
+ assert.equal(options.headers.apikey,legacyKey);assert.equal(options.headers.Authorization,'Bearer '+legacyKey);return response([]);
+}).DB.prepare('SELECT data, version FROM site_state WHERE id = 1').first();
+assert.throws(()=>createSupabaseEnv({...config,SUPABASE_SECRET_KEY:'sb_publishable_client-key'}),/server secret/);
 console.log('Passed: Supabase REST state/version conflicts, admin login/rate limit/origin checks, private/public projection, photo upload/read/delete and Vercel build.');
