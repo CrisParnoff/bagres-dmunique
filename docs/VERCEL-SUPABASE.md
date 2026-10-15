@@ -31,6 +31,7 @@ As sessões usam cookies HttpOnly, Secure e SameSite=Strict, com duração de 12
 2. Root Directory: raiz do repositório.
 3. Framework Preset: **Other**; Node.js: **24.x**.
 4. `vercel.json` define Build Command `npm run build:vercel` e Output Directory `public`. Não use `npm start` para servir na Vercel.
+   As rotas `/api/:path*` e `/player-photos/:path*` são encaminhadas explicitamente para `api/index.js`, preservando os segmentos no parâmetro interno `bagresRoute`. Isso também atende login/logout e fotos com caminhos aninhados.
 5. Cadastre estas variáveis no ambiente do deploy:
 
 | Variável | Valor |

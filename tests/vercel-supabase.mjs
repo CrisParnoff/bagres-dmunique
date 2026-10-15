@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { pbkdf2Sync } from 'node:crypto';
 import { createSupabaseEnv } from '../server/supabase.mjs';
 import { handleVercelRequest } from '../server/vercel-handler.mjs';
-import entry from '../api/[...path].js';
+import entry from '../api/index.js';
 const salt=Buffer.alloc(16,7), password='test-password-only';
 const config={SUPABASE_URL:'https://test.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_server-test-key',ADMIN_SESSION_KEY:'test-session-secret',ADMIN_PASSWORD_HASH:salt.toString('hex')+':'+pbkdf2Sync(password,salt,100000,32,'sha256').toString('hex')};
 let row=null;const attempts=new Map(),photos=new Map(),calls=[];
@@ -61,13 +61,15 @@ assert.equal((await readOnly(request('/api/state','PUT',{expectedVersion:2,state
 assert.equal(row.version,2,'pending admin setup cannot authorize writes');
 const publicState=await (await run(request('/api/state'))).json();assert.equal(publicState.state.players[0].rating,undefined);
 const privateState=await (await run(request('/api/state','GET',null,admin))).json();assert.equal(privateState.state.players[0].rating,5);
+assert.equal((await run(request('/api/index?bagresRoute=state'))).status,200);
+const rewrittenLogin=await run(request('/api/index?bagresRoute=admin/login','POST',{password}));assert.equal(rewrittenLogin.status,200);
 for(let i=0;i<5;i++)assert.equal((await run(request('/api/admin/login','POST',{password:'wrong'},{'x-vercel-forwarded-for':'203.0.113.2'}))).status,401);
 assert.equal((await run(request('/api/admin/login','POST',{password},{'x-vercel-forwarded-for':'203.0.113.2'}))).status,429);
 assert.equal((await run(request('/api/admin/login','POST',{password},{'x-vercel-forwarded-for':'203.0.113.3'}))).status,200,'another client is not globally locked');
 const form=new FormData();form.set('id','p1');form.set('photo',new Blob([new Uint8Array([1,2,3])],{type:'image/png'}),'photo.png');
 const upload=await run(new Request(origin+'/api/player-photo',{method:'POST',headers:{Origin:origin,Cookie:cookie},body:form}));assert.equal(upload.status,200);
 const {photoKey}=await upload.json();
-for(const prefix of ['/player-photos/','/api/player-photos/']){
+for(const prefix of ['/player-photos/','/api/player-photos/','/api/index?bagresRoute=player-photos/']){
  const result=await run(request(prefix+photoKey));assert.equal(result.status,200);assert.equal(result.headers.get('Content-Type'),'image/png');assert.deepEqual([...new Uint8Array(await result.arrayBuffer())],[1,2,3]);
 }
 assert.equal((await run(request('/api/player-photo/delete','POST',{id:'p1',photoKey},admin))).status,200);
@@ -94,6 +96,10 @@ assert.throws(()=>createSupabaseEnv({}),/configuration/);
 const failure=await handleVercelRequest(request('/api/state'),{},upstream);assert.equal(failure.status,503);assert.ok(!(await failure.text()).includes(config.SUPABASE_SECRET_KEY));
 const broken=await handleVercelRequest(request('/api/state'),config,async()=>response({message:'failure'},500));assert.equal(broken.status,503);
 const sql=readFileSync('supabase/migrations/0001_bagres.sql','utf8');assert.match(sql,/where id=1 and version=p_expected_version/);assert.match(sql,/from public, anon, authenticated/);
+const routing=JSON.parse(readFileSync('vercel.json','utf8'));
+assert.ok(routing.functions['api/index.js']);
+assert.ok(routing.rewrites.some(r=>r.source==='/api/:path*'&&r.destination==='/api/index?bagresRoute=:path*'));
+assert.ok(routing.rewrites.some(r=>r.source==='/player-photos/:path*'&&r.destination==='/api/index?bagresRoute=player-photos/:path*'));
 const staticApp=readFileSync('public/app.js','utf8'),html=readFileSync('public/index.html','utf8');
 assert.ok(!staticApp.includes(config.SUPABASE_SECRET_KEY));assert.ok(!html.includes('__FCBAGRES_'));assert.match(html,/\/assets\/fcbagres-logo.webp/);
 const legacyKey='eyJ.test-legacy-jwt';

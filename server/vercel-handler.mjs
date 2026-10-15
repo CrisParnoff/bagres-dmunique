@@ -3,6 +3,11 @@ import { createSupabaseEnv } from './supabase.mjs';
 
 export async function handleVercelRequest(request, config = process.env, fetcher = fetch) {
   const url = new URL(request.url);
+  const rewrittenRoute=url.searchParams.get('bagresRoute');
+  if (rewrittenRoute && /^[a-zA-Z0-9_/-]+$/.test(rewrittenRoute)) {
+    url.pathname='/api/'+rewrittenRoute;
+    url.searchParams.delete('bagresRoute');
+  }
   // Vercel rewrites the existing public photo URL into the API catch-all.
   if (url.pathname.startsWith('/api/player-photos/')) url.pathname = url.pathname.slice(4);
   const headers = new Headers(request.headers);

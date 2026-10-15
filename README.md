@@ -57,7 +57,7 @@ A base funcional veio da versão 48 do Sites. As adaptações para Vercel + Supa
 - `npm run build:vercel`: gera os arquivos estáticos em `public/` e compila o backend.
 - `npm test`: compila e verifica as regras e a integração com Supabase usando respostas simuladas.
 - `npm run admin:credentials`: gera as credenciais do servidor a partir de uma senha informada com entrada oculta.
-- `api/[...path].js`: função Node.js da Vercel para as rotas existentes.
+- `api/index.js`: função Node.js da Vercel; rewrites explícitos atendem a API e as URLs das fotos, incluindo caminhos aninhados.
 - `server/supabase.mjs`: persistência PostgreSQL e fotos via APIs do Supabase.
 - `supabase/migrations/0001_bagres.sql`: tabelas, permissões, salvamento atômico e bucket privado.
 

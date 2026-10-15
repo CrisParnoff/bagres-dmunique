@@ -4,14 +4,18 @@
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "public",
   "functions": {
-    "api/[...path].js": {
+    "api/index.js": {
       "maxDuration": 60
     }
   },
   "rewrites": [
     {
       "source": "/player-photos/:path*",
-      "destination": "/api/player-photos/:path*"
+      "destination": "/api/index?bagresRoute=player-photos/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index?bagresRoute=:path*"
     }
   ],
   "headers": [
