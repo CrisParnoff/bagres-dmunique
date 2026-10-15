@@ -136,7 +136,6 @@
       <section id="partida" class="view" aria-labelledby="partida-title">
         <div class="hero">
           <div>
-            <p class="eyebrow">DIA DE JOGO</p>
             <h2 id="partida-title">Times da semana</h2>
             <p class="muted">Confira quem joga, as equipes e os resultados.</p>
           </div>
@@ -160,7 +159,7 @@
         <p class="ai-note admin-only hidden" id="aiNote" role="status" aria-live="polite"></p>
 
         <section id="artworkPanel" class="card artwork-panel admin-only hidden" aria-labelledby="artwork-title">
-          <div class="section-heading"><div><p class="eyebrow">DIA DE JOGO</p><h3 id="artwork-title">Arte dos times</h3><p class="muted small">Usa a data, os nomes dos times e as fotos da escalação. Gere novamente depois de alterar os jogadores.</p></div><span class="pill">Story · 1080 × 1920</span></div>
+          <div class="section-heading"><div><h3 id="artwork-title">Arte dos times</h3><p class="muted small">Usa a data, os nomes dos times e as fotos da escalação. Gere novamente depois de alterar os jogadores.</p></div><span class="pill">Story · 1080 × 1920</span></div>
           <div class="artwork-fields">
             <label>Início<input id="artStart" type="time" value="21:30" /></label>
             <label>Fim<input id="artEnd" type="time" value="23:00" /></label>
@@ -185,7 +184,7 @@
             <div class="empty-state" id="teamAEmpty">Escolha jogadores abaixo</div>
           </article>
 
-          <div class="versus-wrap"><span class="eyebrow">CONFRONTO</span><div class="versus" aria-hidden="true"><span>VS</span></div><span id="matchDateLabel" class="match-date-label"></span></div>
+          <div class="versus-wrap"><div class="versus" aria-hidden="true"><span>VS</span></div><span id="matchDateLabel" class="match-date-label"></span></div>
 
           <article class="team-card team-b">
             <div class="team-heading">
@@ -221,7 +220,6 @@
         <div class="card squad-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">ESCALAÇÃO</p>
               <h3>Quem joga nesta partida?</h3>
             </div>
             <span class="pill" id="unassignedCount">0 sem time</span>
@@ -239,7 +237,6 @@
         <div id="roundPanel" class="card round-panel hidden"></div>
         <form id="scoreForm" class="card score-card admin-only">
           <div>
-            <p class="eyebrow">FIM DE JOGO</p>
             <h3 id="scoreFormTitle">Registrar placar</h3>
             <p id="scoreFormHelp" class="muted small">O resultado atualiza jogos, vitórias, empates e derrotas. Informe os gols e assistências de cada jogador abaixo.</p>
           </div>
@@ -266,7 +263,6 @@
 
       <section id="destaques" class="view" aria-labelledby="highlights-title">
         <div class="section-intro">
-          <p class="eyebrow">DESTAQUES DO MÊS</p>
           <h2 id="highlights-title">Quem está em alta?</h2>
           <p class="muted">Top 3 de gols, assistências e vitórias nas partidas registradas no mês.</p>
         </div>
@@ -276,33 +272,33 @@
           </label>
         </div>
         <div class="monthly-grid">
-          <article class="card monthly-card">
-            <div class="monthly-heading"><span class="monthly-icon">⚽</span><div><p class="eyebrow">ATAQUE</p><h3>Artilheiros do mês</h3></div></div>
+          <article class="card monthly-card monthly-goals">
+            <div class="monthly-heading"><h3>Artilheiros do mês</h3></div>
             <ol id="monthlyGoals" class="monthly-list"></ol>
             <p id="monthlyGoalsEmpty" class="monthly-empty hidden">Sem gols registrados neste mês.</p>
           </article>
-          <article class="card monthly-card">
-            <div class="monthly-heading"><span class="monthly-icon assist-icon">↗</span><div><p class="eyebrow">CRIAÇÃO</p><h3>Pifador do mês</h3></div></div>
+          <article class="card monthly-card monthly-assists">
+            <div class="monthly-heading"><h3>Pifador do mês</h3></div>
             <ol id="monthlyAssists" class="monthly-list"></ol>
             <p id="monthlyAssistsEmpty" class="monthly-empty hidden">Sem assistências registradas neste mês.</p>
           </article>
-          <article class="card monthly-card">
-            <div class="monthly-heading"><span class="monthly-icon wins-icon">★</span><div><p class="eyebrow">RESULTADOS</p><h3>Mais vitórias do mês</h3></div></div>
+          <article class="card monthly-card monthly-wins">
+            <div class="monthly-heading"><h3>Mais vitórias do mês</h3></div>
             <ol id="monthlyWins" class="monthly-list"></ol>
             <p id="monthlyWinsEmpty" class="monthly-empty hidden">Sem vitórias registradas neste mês.</p>
           </article>
-          <article class="card monthly-card">
-            <div class="monthly-heading"><span class="monthly-icon mvp-icon">M</span><div><p class="eyebrow">RECONHECIMENTO</p><h3>MVPs do mês</h3></div></div>
+          <article class="card monthly-card monthly-mvps">
+            <div class="monthly-heading"><h3>MVPs do mês</h3></div>
             <ol id="monthlyMvps" class="monthly-list"></ol>
             <p id="monthlyMvpsEmpty" class="monthly-empty hidden">Sem MVPs registrados neste mês.</p>
           </article>
-          <article class="card monthly-card">
-            <div class="monthly-heading"><span class="monthly-icon bola-icon">B</span><div><p class="eyebrow">DESTAQUE INVERTIDO</p><h3>Bagres do mês</h3></div></div>
+          <article class="card monthly-card monthly-bagres">
+            <div class="monthly-heading"><h3>Bagres do mês</h3></div>
             <ol id="monthlyBolaMurchas" class="monthly-list"></ol>
             <p id="monthlyBolaMurchasEmpty" class="monthly-empty hidden">Sem Bagres registradas neste mês.</p>
           </article>
         <article class="card monthly-card goalkeeper-highlight">
-          <div class="monthly-heading"><span class="monthly-icon">GK</span><div><p class="eyebrow">NO GOL</p><h3>Goleiro menos vazado</h3></div></div>
+          <div class="monthly-heading"><h3>Goleiro menos vazado</h3></div>
           <ol id="monthlyGoalkeepers" class="monthly-list"></ol>
           <p id="monthlyGoalkeepersEmpty" class="monthly-empty hidden">Nenhuma partida com goleiro fixo registrada neste mês.</p>
           <p class="muted small">Menor média de gols sofridos por jogo. Conta somente quem foi marcado como goleiro fixo; mínimo de uma partida no mês.</p>
@@ -313,7 +309,6 @@
 
       <section id="jogadores" class="view admin-only" aria-labelledby="jogadores-title">
         <div class="section-intro">
-          <p class="eyebrow">ELENCO</p>
           <h2 id="jogadores-title">Jogadores</h2>
           <p class="muted">Veja o elenco e as partidas de cada jogador.</p>
           <p class="muted small storage-note">Os dados são salvos no site e podem ser vistos em outros dispositivos.</p>
@@ -338,13 +333,12 @@
 
       <section id="ranking" class="view" aria-labelledby="ranking-title">
         <div class="section-intro">
-          <p class="eyebrow">ESTATÍSTICAS</p>
           <h2 id="ranking-title">Ranking FC BAGRES</h2>
           <p class="muted">Confira o desempenho mensal. O ranking anual fica disponível somente no modo admin.</p>
         </div>
         <div class="card ranking-card">
           <div class="ranking-section-heading">
-            <div><p class="eyebrow">ABERTO A TODOS</p><h3>Ranking mensal</h3></div>
+            <div><h3>Ranking mensal</h3></div>
             <label class="ranking-filter">Mês e ano
               <input id="monthlyRankingMonth" type="month" />
             </label>
@@ -373,7 +367,7 @@
 
         <div class="card ranking-card annual-ranking admin-only">
           <div class="ranking-section-heading">
-            <div><p class="eyebrow">RESTRITO A ADMIN</p><h3>Ranking anual</h3></div>
+            <div><h3>Ranking anual <span class="admin-tag"><svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>Só admin</span></h3></div>
             <label class="ranking-filter">Ano
               <select id="annualRankingYear"></select>
             </label>
@@ -418,7 +412,6 @@
         <div class="card history-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">ARQUIVO</p>
               <h3>Últimos jogos</h3>
             </div>
             <span class="pill" id="matchesCount">0 partidas</span>
@@ -430,7 +423,6 @@
 
       <section id="stats" class="view" aria-labelledby="stats-page-title">
         <div class="section-intro">
-          <p class="eyebrow">DESEMPENHO INDIVIDUAL</p>
           <h2 id="stats-page-title">Stats do jogador</h2>
           <p class="muted">Escolha seu nome e veja seus números nas partidas registradas.</p>
         </div>
@@ -450,7 +442,7 @@
         </div>
         <div id="playerStatsProfile" class="player-stats-profile"></div>
         <section class="card stats-evolution" aria-labelledby="stats-evolution-title">
-          <div class="section-heading"><div><p class="eyebrow">JOGO A JOGO</p><h3 id="stats-evolution-title">Sua evolução</h3></div><span id="statsChartPill" class="pill">Gols + assistências</span></div>
+          <div class="section-heading"><div><h3 id="stats-evolution-title">Sua evolução</h3></div><span id="statsChartPill" class="pill">Gols + assistências</span></div>
           <div id="playerStatsChart"></div>
         </section>
         <div id="playerStatsGrid" class="card player-stats-grid"></div>
@@ -460,7 +452,6 @@
       </section>
       <section id="transparencia" class="view" aria-labelledby="transparency-title">
         <div class="section-intro">
-          <p class="eyebrow">CAIXA DO GRUPO</p>
           <h2 id="transparency-title">Transparência</h2>
           <p class="muted">Acompanhe as entradas e saídas do caixa na planilha oficial do FC Bagres.</p>
         </div>
@@ -477,7 +468,7 @@
           <p class="muted small transparency-help">No celular, deslize dentro da planilha para ver as colunas. Para uma visualização maior, use “Abrir no Google Planilhas”.</p>
         </div>
         <section class="card monthly-members-card" aria-labelledby="monthly-members-title">
-          <div class="section-heading"><div><p class="eyebrow">MENSALISTAS</p><h3 id="monthly-members-title">Quem é mensal neste mês?</h3></div><span class="pill" id="monthlyMembersCount">0 mensalistas</span></div>
+          <div class="section-heading"><div><h3 id="monthly-members-title">Quem é mensal neste mês?</h3></div><span class="pill" id="monthlyMembersCount">0 mensalistas</span></div>
           <div class="monthly-members-tools"><label for="monthlyMembersMonth">Mês<input type="month" id="monthlyMembersMonth" /></label><p class="muted small admin-only">Marque os mensalistas do mês selecionado. As alterações são salvas automaticamente.</p></div>
           <p id="monthlyMembersStatus" class="muted small" role="status" aria-live="polite"></p>
           <div id="monthlyMembersList" class="monthly-members-list"></div>
