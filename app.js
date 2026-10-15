@@ -1081,7 +1081,12 @@ const AI_PROBLEMS = {
   quota: ["Limite do Gemini atingido", "A chave Gemini usada para montar os times chegou ao limite de uso. Um admin precisa trocar a chave na engrenagem desta tela. Enquanto isso, use “Equilibrar times”.", "Trocar chave"],
   invalid_key: ["Chave Gemini recusada", "O Google não aceitou a chave salva. Confira se ela foi copiada inteira, ou gere uma nova e salve na engrenagem desta tela.", "Trocar chave"],
   no_key: ["Falta configurar a IA", "Antes de montar os times com IA, um admin precisa salvar a chave Gemini e o prompt da diretoria na engrenagem desta tela.", "Configurar"],
-  model: ["Modelo do Gemini indisponível", "O Google desativou os modelos que o site usa. É preciso atualizar o site; até lá, use “Equilibrar times”.", ""]
+  model: ["Modelo do Gemini indisponível", "O Google desativou os modelos que o site usa. É preciso atualizar o site; até lá, use “Equilibrar times”.", ""],
+  timeout: ["O Gemini demorou para responder", "Tentamos outros modelos, mas a montagem não terminou no tempo disponível. Tente novamente em instantes ou use “Equilibrar times”.", ""],
+  unavailable: ["Gemini temporariamente indisponível", "Não conseguimos concluir a montagem após tentar os modelos disponíveis. Aguarde um pouco e tente novamente, ou use “Equilibrar times”.", ""],
+  blocked: ["O Gemini recusou as orientações", "Revise o prompt da diretoria na engrenagem, mantendo as características de jogo e as regras de equilíbrio, e tente novamente.", "Revisar prompt"],
+  bad_output: ["A IA não concluiu uma escalação válida", "Os times recebidos não passaram na conferência. Tente novamente ou use “Equilibrar times”.", ""],
+  bad_request: ["O Gemini não aceitou o pedido", "Não foi possível processar a solicitação. Se o problema persistir, a integração com o Gemini precisa ser revisada.", ""]
 };
 
 function openDialog(dialog) {
@@ -1197,7 +1202,7 @@ async function aiBalance() {
     });
     const result = await response.json().catch(() => ({}));
     if (response.status === 403) { showToast("Sua sessão de admin expirou. Entre de novo."); return; }
-    if (!response.ok) { showAiProblem(result.code, result.error); return; }
+    if (!response.ok) { showAiProblem(result.code || (response.status === 504 ? "timeout" : response.status >= 500 ? "unavailable" : ""), result.error); return; }
     const assigned = new Map();
     keys.forEach(key => (result.teams?.[key] || []).forEach(id => assigned.set(id, key)));
     if (assigned.size !== players.length || players.some(player => !assigned.has(player.id))) { showAiProblem("bad_output", "A IA devolveu times incompletos. Tente de novo ou use “Equilibrar times”."); return; }

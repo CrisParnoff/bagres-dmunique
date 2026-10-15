@@ -17,6 +17,10 @@ Os testes incluem o contrato entre a interface e os controles do aplicativo, al�
 - **IA dos times (Gemini):** no modo admin, a tela Partida tem o botão “Montar com IA” e uma engrenagem para salvar a chave Gemini e o prompt da diretoria. Os dois ficam guardados só no servidor (junto do estado salvo, mas nunca devolvidos pela API) e a chamada ao Gemini sai do servidor. Se a chave atingir o limite, os admins veem um aviso para trocá-la. O limite do Gemini é por projeto do Google Cloud: a chave nova precisa ser de outro projeto ou outra conta.
 - **Transparência:** `/api/transparency` lê a planilha pública do caixa (linha “CAIXA” e colunas Data, Descrição, Categoria, Tipo, Valor) e a aba mostra saldo, mensalistas pendentes do mês e as últimas entradas e saídas acima da planilha.
 
+A montagem com IA usa raciocínio reduzido (`thinkingLevel: LOW`) para diminuir a espera, preservando o prompt de até 8.000 caracteres. Cada chamada ao Gemini tem limite de 15 segundos; falhas de rede, timeout e indisponibilidade temporária fazem o servidor tentar o próximo modelo, dentro de um orçamento total de 50 segundos iniciado antes da leitura das configurações. Chave recusada e cota esgotada encerram a tentativa com aviso específico. Se a montagem falhar, a tela mantém um diálogo com orientação para tentar novamente. Os logs registram apenas modelo, status e categoria da falha, sem chave, prompt ou resposta do Google.
+
+Referências da integração: [raciocínio do Gemini](https://ai.google.dev/gemini-api/docs/generate-content/thinking) e [tratamento de falhas temporárias](https://ai.google.dev/gemini-api/docs/troubleshooting).
+
 ## Como abrir
 
 1. Instale o **Node.js 24 ou superior**: https://nodejs.org/ (inclui o npm).

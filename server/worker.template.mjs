@@ -176,6 +176,7 @@ function publicState(state) {
 const AI_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"];
 const AI_PROMPT_LIMIT = 8000;
 const AI_TIME_BUDGET = 50000;
+const AI_ATTEMPT_TIMEOUT = 15000;
 const KIT_COLORS = { A: "vermelho", B: "branco", C: "preto" };
 const externalFetch = env => env.EXTERNAL_FETCH || fetch;
 
@@ -283,42 +284,60 @@ function readBalance(text, body) {
 function geminiFailure(status, detail) {
   if (status === 429 || status === 402 || /RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(detail)) return "quota";
   if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|API key expired|PERMISSION_DENIED|leaked/i.test(detail)) return "invalid_key";
+  if (status === 408 || status === 504) return "timeout";
   if (status >= 500) return "unavailable";
   return "bad_request";
 }
 
 async function askGemini(env, key, system, prompt, schema, deadline) {
-  let modelMissing = false;
+  let lastFailure = "model";
+  let retryDelay = 0;
   for (const model of AI_MODELS) {
-    const remaining = deadline - Date.now();
-    if (remaining < 5000) break;
-    let response;
-    try {
-      response = await externalFetch(env)(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4, responseMimeType: "application/json", ...(schema ? { responseSchema: schema } : {}) }
-        }),
-        signal: AbortSignal.timeout(Math.min(remaining, 40000))
-      });
-    } catch (_) { return { failure: "unavailable" }; }
-    // Modelo desativado pelo Google: tenta o próximo da lista.
-    if (response.status === 404) { modelMissing = true; continue; }
-    if (!response.ok) {
-      const failure = geminiFailure(response.status, await response.text().catch(() => ""));
-      // Se o formato pedido for recusado, tenta uma vez sem o esquema (o JSON continua sendo conferido).
-      if (failure === "bad_request" && schema) return askGemini(env, key, system, prompt, null, deadline);
-      return { failure };
+    if (retryDelay) {
+      if (deadline - Date.now() < retryDelay + 5000) break;
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
-    const data = await response.json().catch(() => null);
-    const text = (data?.candidates?.[0]?.content?.parts || []).filter(part => !part.thought && typeof part.text === "string").map(part => part.text).join("");
-    if (!text) return { failure: data?.promptFeedback?.blockReason ? "blocked" : "bad_output" };
-    return { text, model };
+    // A recusa do esquema só repete o modelo atual, sem reiniciar toda a lista.
+    for (let withSchema = Boolean(schema); ; withSchema = false) {
+      const remaining = deadline - Date.now();
+      if (remaining < 5000) return { failure: lastFailure === "model" ? "timeout" : lastFailure };
+      let status = 0;
+      try {
+        const response = await externalFetch(env)(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", thinkingConfig: { thinkingLevel: "LOW" }, ...(withSchema ? { responseSchema: schema } : {}) }
+          }),
+          signal: AbortSignal.timeout(Math.min(remaining, AI_ATTEMPT_TIMEOUT))
+        });
+        status = response.status;
+        if (status === 404) break;
+        if (!response.ok) {
+          lastFailure = geminiFailure(status, await response.text());
+          // Metadados apenas: nunca registrar chave, prompt ou resposta do Google.
+          console.warn("Gemini balance attempt", { model, status, code: lastFailure });
+          if (lastFailure === "bad_request" && withSchema) continue;
+          if (!["unavailable", "timeout"].includes(lastFailure)) return { failure: lastFailure };
+          break;
+        }
+        const data = await response.json();
+        const candidate = data?.candidates?.[0];
+        if (data?.promptFeedback?.blockReason || ["SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII"].includes(candidate?.finishReason)) return { failure: "blocked" };
+        const text = (candidate?.content?.parts || []).filter(part => !part.thought && typeof part.text === "string").map(part => part.text).join("");
+        if (!text || candidate?.finishReason === "MAX_TOKENS") return { failure: "bad_output" };
+        return { text, model };
+      } catch (error) {
+        lastFailure = ["TimeoutError", "AbortError"].includes(error?.name) ? "timeout" : "unavailable";
+        console.warn("Gemini balance attempt", { model, status, code: lastFailure });
+        break;
+      }
+    }
+    retryDelay = ["unavailable", "timeout"].includes(lastFailure) ? Math.min(1000, retryDelay ? retryDelay * 2 : 500) + Math.floor(Math.random() * 100) : 0;
   }
-  return { failure: modelMissing ? "model" : "unavailable" };
+  return { failure: lastFailure };
 }
 
 const AI_FAILURES = {
@@ -329,6 +348,7 @@ const AI_FAILURES = {
   blocked: [502, "O Gemini recusou responder com essas orientações."],
   bad_output: [502, "A IA devolveu times que não seguem as regras. Tente de novo."],
   bad_request: [502, "O Gemini não aceitou o pedido."],
+  timeout: [504, "O Gemini demorou demais para responder, mesmo após tentar outros modelos. Tente novamente."],
   unavailable: [503, "O Gemini não respondeu agora. Tente de novo em instantes."]
 };
 const aiFailure = code => json({ error: AI_FAILURES[code][1], code }, AI_FAILURES[code][0]);
@@ -502,9 +522,9 @@ export default {
       try {
         const body = await request.json();
         if (!validBalanceRequest(body)) return json({ error: "Dados da escalação inválidos." }, 400);
+        const deadline = Date.now() + AI_TIME_BUDGET;
         const settings = (await getState(env)).state?.aiSettings;
         if (!settings?.key) return aiFailure("no_key");
-        const deadline = Date.now() + AI_TIME_BUDGET;
         let feedback = null;
         for (let attempt = 0; attempt < 2; attempt++) {
           const answer = await askGemini(env, settings.key, BALANCE_RULES, balancePrompt(body, settings.prompt, feedback), balanceSchema(body.teams), deadline);
