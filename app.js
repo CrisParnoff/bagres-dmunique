@@ -1,14 +1,26 @@
 const STORAGE_KEY = "fut-quinta-amigos-v1";
 const emptyStats = () => ({ games: 0, wins: 0, draws: 0, losses: 0, points: 0, goals: 0, assists: 0, gf: 0, ga: 0 });
 
+// Nomes padrão das equipes: A vermelha, B branca, C preta.
+const TEAM_DEFAULTS = { A: "Equipe Roca", B: "Equipe Quinha", C: "Equipe Cão" };
+// Nomes de fábrica antigos que ainda podem estar salvos como nome atual.
+const LEGACY_TEAM_NAMES = { A: "Time Azul", B: "Time Branco", C: "Time Verde" };
+function applyTeamDefaults(target) {
+  for (const key of ["A", "B", "C"]) {
+    const field = `team${key}Name`;
+    if (!target[field] || target[field] === LEGACY_TEAM_NAMES[key]) target[field] = TEAM_DEFAULTS[key];
+  }
+  return target;
+}
+
 const defaultState = () => ({
   players: [],
   matches: [],
   rounds: [],
   monthlyMembers: {},
-  teamCName: "Time Verde",
-  teamAName: "Time Azul",
-  teamBName: "Time Branco",
+  teamCName: TEAM_DEFAULTS.C,
+  teamAName: TEAM_DEFAULTS.A,
+  teamBName: TEAM_DEFAULTS.B,
   matchDate: new Date().toISOString().slice(0, 10)
 });
 
@@ -36,7 +48,7 @@ function readLocalBackup() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (stored?.players && Array.isArray(stored.players) && Array.isArray(stored.matches)) {
-      stored.rounds ??= []; stored.teamCName ??= "Time Verde";
+      stored.rounds ??= []; applyTeamDefaults(stored);
       stored.players.forEach(player => { player.stats = { ...emptyStats(), ...player.stats }; });
       return stored;
     }
@@ -75,7 +87,7 @@ async function loadRemote() {
     $("#matchMvp").value = ""; $("#matchBolaMurcha").value = "";
     state.monthlyMembers ??= {};
     state.rounds ??= [];
-    state.teamCName ??= "Time Verde";
+    applyTeamDefaults(state);
     selectedSwapId = null;
     state.players.forEach(player => {
       player.stats = { ...emptyStats(), ...player.stats };
@@ -170,7 +182,7 @@ function teamTotal(team) {
 
 function render() {
   $("#teamAName").value = currentRound()?.names.A || state.teamAName;
-  $("#teamCName").value = currentRound()?.names.C || state.teamCName || "Time Verde";
+  $("#teamCName").value = currentRound()?.names.C || state.teamCName || TEAM_DEFAULTS.C;
   $("#teamCName").disabled = !adminMode;
   $("#teamBName").value = currentRound()?.names.B || state.teamBName;
   $("#matchDate").value = state.matchDate;
@@ -306,8 +318,7 @@ function renderHomePodium(field, target, singular, plural, monthName, stats) {
 
 function renderHomeLineup() {
   $("#homeMatchDate").textContent = state.matchDate ? homeDayLabel(state.matchDate) : "";
-  const defaults = { A: "Time Azul", B: "Time Branco", C: "Time Verde" };
-  const teams = activeTeamKeys().map(key => ({ key, name: currentRound()?.names[key] || state[`team${key}Name`] || defaults[key], players: entryPlayers(key) }));
+  const teams = activeTeamKeys().map(key => ({ key, name: currentRound()?.names[key] || state[`team${key}Name`] || TEAM_DEFAULTS[key], players: entryPlayers(key) }));
   if (teams.some(team => team.players.length)) {
     $("#homeTeams").innerHTML = `<div class="lineup-grid teams-${teams.length}">${teams.map(team => `<article class="sheet sheet-${homeKitKey(team.key)}">
       <header class="sheet-head"><b>${escapeHtml(team.name)}</b><span>${homeCount(team.players.length, "jogador", "jogadores")}</span></header>

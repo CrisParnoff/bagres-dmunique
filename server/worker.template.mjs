@@ -153,7 +153,7 @@ function initialState() {
   const stats = () => ({ games: 0, wins: 0, draws: 0, losses: 0, points: 0, goals: 0, assists: 0, gf: 0, ga: 0 });
   return {
     players: names.map(([name, rating], index) => ({ id: "p" + (index + 1), name, rating, available: true, team: null, stats: stats() })),
-    matches: [], rounds: [], monthlyMembers: {}, teamAName: "Time Azul", teamBName: "Time Branco", teamCName: "Time Verde",
+    matches: [], rounds: [], monthlyMembers: {}, teamAName: "Equipe Roca", teamBName: "Equipe Quinha", teamCName: "Equipe Cão",
     matchDate: new Date().toISOString().slice(0, 10)
   };
 }
