@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { pbkdf2Sync } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { Script } from 'node:vm';
 import { handleVercelRequest } from '../server/vercel-handler.mjs';
 
 // IA dos times (Gemini) e leitura da planilha do caixa, com Supabase, Gemini e
@@ -87,6 +89,8 @@ assert.deepEqual(body.teams, { A: ['p1', 'p3', 'p5', 'p7'], B: ['p2', 'p4', 'p6'
 assert.equal(body.explanation, 'Níveis somados iguais.');
 const sent = geminiCalls.at(-1).body;
 assert.equal(sent.generationConfig.responseMimeType, 'application/json');
+assert.equal(sent.generationConfig.thinkingConfig.thinkingLevel, 'LOW');
+assert.equal(sent.generationConfig.temperature, undefined, 'use supported default sampling parameters');
 assert.match(sent.contents[0].parts[0].text, /Mota e Matheus não jogam juntos\./);
 assert.match(sent.contents[0].parts[0].text, /J8 \| Jogador 8 \| nível 3 \| linha/);
 assert.match(sent.systemInstruction.parts[0].text, /No máximo um goleiro fixo por time/);
@@ -121,6 +125,101 @@ assert.equal(result.status, 200);
 assert.notEqual(geminiCalls[0].model, geminiCalls[1].model, 'a retired model falls back to the next one');
 
 // Sem chave salva.
+// Falhas transitórias devem usar o próximo modelo, sem pedir outra chave.
+const goodTeams = () => geminiText(JSON.stringify({ teams: [{ team: 'A', players: ['J1', 'J3', 'J5', 'J7'] }, { team: 'B', players: ['J2', 'J4', 'J6', 'J8'] }], explanation: 'ok' }));
+geminiCalls = [];
+gemini = [() => reply({ error: { status: 'UNAVAILABLE' } }, 503), goodTeams];
+result = await ask();
+assert.equal(result.status, 200, 'temporary overload must fall back to another model');
+assert.equal(geminiCalls.length, 2);
+assert.notEqual(geminiCalls[0].model, geminiCalls[1].model);
+
+for (const firstFailure of [
+  () => { throw new DOMException('Timed out', 'TimeoutError'); },
+  () => { throw new TypeError('Network unavailable'); },
+  () => ({ status: 200, ok: true, json: async () => { throw new DOMException('Body timed out', 'AbortError'); } }),
+  () => reply({ error: { status: 'DEADLINE_EXCEEDED' } }, 504)
+]) {
+  geminiCalls = [];
+  gemini = [firstFailure, goodTeams];
+  result = await ask();
+  assert.equal(result.status, 200, 'network and body timeouts must fall back');
+  assert.equal(geminiCalls.length, 2);
+}
+
+// O limite individual deixa tempo para os modelos alternativos.
+const originalTimeout = AbortSignal.timeout;
+const timeouts = [];
+AbortSignal.timeout = milliseconds => { timeouts.push(milliseconds); return originalTimeout(milliseconds); };
+try {
+  gemini = [() => { throw new DOMException('Timed out', 'TimeoutError'); }, goodTeams];
+  assert.equal((await ask()).status, 200);
+} finally { AbortSignal.timeout = originalTimeout; }
+assert.equal(timeouts.filter(value => value === 15000).length, 3, 'one Supabase read and two bounded Gemini attempts');
+
+// Não mascarar indisponibilidade ou timeout como modelo desativado.
+gemini = [() => { throw new DOMException('Timed out', 'TimeoutError'); }, () => reply({}, 404), () => reply({}, 404)];
+result = await ask();
+assert.equal(result.status, 504);
+assert.equal((await result.json()).code, 'timeout');
+gemini = Array.from({ length: 3 }, () => () => reply({}, 503));
+result = await ask();
+assert.equal(result.status, 503);
+assert.equal((await result.json()).code, 'unavailable');
+gemini = Array.from({ length: 3 }, () => () => reply({}, 404));
+assert.equal((await (await ask()).json()).code, 'model');
+
+// Chave inválida e cota esgotada não geram uma sequência de novas chamadas.
+for (const [status, code] of [[403, 'invalid_key'], [429, 'quota']]) {
+  geminiCalls = [];
+  gemini = [() => reply({}, status)];
+  assert.equal((await (await ask()).json()).code, code);
+  assert.equal(geminiCalls.length, 1);
+}
+
+// Esquema recusado: repetir só o modelo atual, sem recomeçar pelo desativado.
+geminiCalls = [];
+gemini = [() => reply({}, 404), () => reply({}, 400), goodTeams];
+assert.equal((await ask()).status, 200);
+assert.equal(geminiCalls.length, 3);
+assert.equal(geminiCalls[1].model, geminiCalls[2].model);
+assert.ok(geminiCalls[1].body.generationConfig.responseSchema);
+assert.equal(geminiCalls[2].body.generationConfig.responseSchema, undefined);
+
+// Recusas de segurança no candidato também são identificadas corretamente.
+gemini = [() => reply({ candidates: [{ finishReason: 'SAFETY' }] })];
+assert.equal((await (await ask()).json()).code, 'blocked');
+
+// Prompt no limite continua sendo aceito e enviado integralmente ao Gemini.
+const longPrompt = 'Perfil dos jogadores e equilíbrio. '.repeat(250).slice(0, 8000);
+assert.equal(longPrompt.length, 8000);
+assert.equal((await run(request('/api/ai/settings', 'PUT', { prompt: longPrompt }, admin))).status, 200);
+gemini = [goodTeams];
+assert.equal((await ask()).status, 200);
+assert.ok(geminiCalls.at(-1).body.contents[0].parts[0].text.includes(longPrompt));
+
+// Relógio simulado: três timeouts reais de 15s cabem no orçamento de 50s.
+let elapsed = 0, deadlineCalls = 0;
+const helperSource = readFileSync('server/worker.template.mjs', 'utf8');
+const helperContext = { console:{warn(){}}, Date:{now:()=>elapsed}, Math, DOMException,
+  AbortSignal:{timeout:ms=>({milliseconds:ms})},
+  setTimeout(resolve, ms){ elapsed += ms; resolve(); },
+  env:{EXTERNAL_FETCH:async(url, options)=>{
+    deadlineCalls++;
+    elapsed += options.signal.milliseconds;
+    throw new DOMException('Timed out', 'TimeoutError');
+  }}
+};
+new Script(helperSource.slice(helperSource.indexOf('const AI_MODELS'), helperSource.indexOf('const AI_FAILURES'))).runInNewContext(helperContext);
+const timedAnswer = await new Script('askGemini(env,"test-key","rules","prompt",null,50000)').runInNewContext(helperContext);
+assert.equal(timedAnswer.failure, 'timeout');
+assert.equal(deadlineCalls, 3);
+assert.ok(elapsed < 50000, 'fallback attempts must not exceed the global deadline');
+elapsed = 48000;
+deadlineCalls = 0;
+await new Script('askGemini(env,"test-key","rules","prompt",null,50000)').runInNewContext(helperContext);
+assert.equal(deadlineCalls, 0, 'do not start a request when the deadline is nearly exhausted');
+
 assert.equal((await run(request('/api/ai/settings', 'PUT', { removeKey: true }, admin))).status, 200);
 result = await ask();
 assert.equal(result.status, 409);
