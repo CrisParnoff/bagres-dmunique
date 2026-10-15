@@ -56,7 +56,7 @@ As chaves ficam apenas no servidor. A nova chave secreta é enviada pelo cabeça
 - Envie uma foto, confira a exibição e teste sua remoção.
 - Confira rankings, Stats e artes.
 
-Sem configurar banco e credenciais, a interface pode carregar, mas a API responde 503. O build não depende de segredos e não os incorpora.
+Sem configurar `SUPABASE_URL` e a chave de servidor, a interface pode carregar, mas a API responde 503. Com o Supabase configurado, os dados públicos e as fotos já podem ser consultados. Enquanto as duas credenciais de admin não forem cadastradas, o login informa que a administração ainda não foi configurada e as edições continuam bloqueadas. O build não depende de segredos e não os incorpora.
 
 ## Histórico do site original
 

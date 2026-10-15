@@ -2,7 +2,7 @@
 export function createSupabaseEnv(config = process.env, fetcher = fetch) {
   const base = config.SUPABASE_URL?.replace(/\/$/, '');
   const secret = config.SUPABASE_SECRET_KEY || config.SUPABASE_SERVICE_ROLE_KEY;
-  if (!base || !secret || !config.ADMIN_PASSWORD_HASH || !config.ADMIN_SESSION_KEY) throw new Error('Missing server configuration');
+  if (!base || !secret) throw new Error('Missing server configuration');
   if (!secret.startsWith('sb_secret_') && !secret.startsWith('eyJ')) throw new Error('A Supabase server secret key is required');
   const url = new URL(base);
   if (url.protocol !== 'https:') throw new Error('SUPABASE_URL must use HTTPS');

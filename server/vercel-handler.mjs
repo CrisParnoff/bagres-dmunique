@@ -10,6 +10,11 @@ export async function handleVercelRequest(request, config = process.env, fetcher
   headers.set('CF-Connecting-IP', request.headers.get('x-vercel-forwarded-for')?.split(',')[0].trim() || 'unknown');
   const method = request.method;
   try {
+    // Public data remains readable while the owner finishes admin setup.
+    // Writes still require a valid signed session in the existing worker.
+    if (url.pathname === '/api/admin/login' && (!config.ADMIN_PASSWORD_HASH || !config.ADMIN_SESSION_KEY)) {
+      return new Response(JSON.stringify({error:'Administração ainda não configurada. Configure as credenciais de admin na Vercel.'}), {status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+    }
     const body = ['GET','HEAD'].includes(method) ? undefined : await request.arrayBuffer();
     if (body && body.byteLength > 3 * 1024 * 1024) return new Response(JSON.stringify({error:'Dados muito grandes'}), {status:413,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
     const forwarded = new Request(url, {method,headers,body});

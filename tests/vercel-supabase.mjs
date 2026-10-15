@@ -51,6 +51,14 @@ const saves=await Promise.all([run(request('/api/state','PUT',{expectedVersion:0
 assert.deepEqual(saves.map(r=>r.status).sort(),[200,409],'concurrent writes cannot overwrite newer state');
 assert.equal((await run(request('/api/state','PUT',{expectedVersion:1,state:seed},admin))).status,200);
 assert.equal(row.version,2);
+const pendingAdmin={...config,ADMIN_PASSWORD_HASH:undefined,ADMIN_SESSION_KEY:undefined};
+const readOnly=req=>handleVercelRequest(req,pendingAdmin,upstream);
+const available=await readOnly(request('/api/state'));assert.equal(available.status,200);
+assert.equal((await available.json()).state.players[0].rating,undefined);
+assert.equal((await (await readOnly(request('/api/session'))).json()).admin,false);
+assert.equal((await readOnly(request('/api/admin/login','POST',{password}))).status,503);
+assert.equal((await readOnly(request('/api/state','PUT',{expectedVersion:2,state:seed},admin))).status,403);
+assert.equal(row.version,2,'pending admin setup cannot authorize writes');
 const publicState=await (await run(request('/api/state'))).json();assert.equal(publicState.state.players[0].rating,undefined);
 const privateState=await (await run(request('/api/state','GET',null,admin))).json();assert.equal(privateState.state.players[0].rating,5);
 for(let i=0;i<5;i++)assert.equal((await run(request('/api/admin/login','POST',{password:'wrong'},{'x-vercel-forwarded-for':'203.0.113.2'}))).status,401);
