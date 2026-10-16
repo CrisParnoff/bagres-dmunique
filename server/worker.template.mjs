@@ -93,7 +93,8 @@ function validState(state) {
     if (match.goalkeeperBId != null && (!id(match.goalkeeperBId) || !match.teamB.includes(match.goalkeeperBId))) return false;
     if (match.goalkeeperAId != null && match.goalkeeperAId === match.goalkeeperBId) return false;
     for (const awardId of [match.mvpPlayerId, match.bolaMurchaPlayerId]) {
-      if (awardId != null && (!id(awardId) || (!match.teamA.includes(awardId) && !match.teamB.includes(awardId)))) return false;
+      // MVP e Bagre podem ser de quem ficou fora da escalação.
+      if (awardId != null && !id(awardId)) return false;
     }
   }
   if (state.teamCName != null && (typeof state.teamCName !== "string" || state.teamCName.length > 30)) return false;
@@ -111,7 +112,7 @@ function validState(state) {
     }
     if (participants.length < 15 || participants.length > 200 || new Set(participants).size !== participants.length || Math.max(...Object.values(round.teams).map(team => team.length)) - Math.min(...Object.values(round.teams).map(team => team.length)) > 1) return false;
     if (typeof round.contributions !== "object" || !Object.entries(round.contributions).every(([playerId,c]) => participants.includes(playerId) && c && number(c.goals) && c.goals <= 99 && number(c.assists) && c.assists <= 99)) return false;
-    if ([round.mvpPlayerId,round.bolaMurchaPlayerId].some(award => award != null && !participants.includes(award))) return false;
+    if ([round.mvpPlayerId,round.bolaMurchaPlayerId].some(award => award != null && !id(award))) return false;
     const games = state.matches.filter(match => match.roundId === round.id);
     const indexes = new Set(); const points = { A:0, B:0, C:0 }, goals = { A:0, B:0, C:0 };
     for (const match of games) {
@@ -125,7 +126,7 @@ function validState(state) {
       else { points[a]++; points[b]++; }
     }
     if (round.closed) {
-      if (games.length !== 9 || !["A","B","C"].includes(round.championTeam) || points[round.championTeam] !== Math.max(...Object.values(points)) || !participants.includes(round.mvpPlayerId) || !participants.includes(round.bolaMurchaPlayerId) || participants.some(playerId => !round.contributions[playerId])) return false;
+      if (games.length !== 9 || !["A","B","C"].includes(round.championTeam) || points[round.championTeam] !== Math.max(...Object.values(points)) || !id(round.mvpPlayerId) || !id(round.bolaMurchaPlayerId) || participants.some(playerId => !round.contributions[playerId])) return false;
       for (const key of ["A","B","C"]) for (const field of ["goals","assists"]) if (round.teams[key].reduce((sum,playerId) => sum + round.contributions[playerId][field],0) > goals[key]) return false;
     } else if (round.championTeam != null) return false;
   }

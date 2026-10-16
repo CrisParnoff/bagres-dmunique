@@ -261,8 +261,8 @@ function homeAwardFigure(kind, playerId, day) {
   const player = homePlayer(playerId);
   const { goals, assists } = day.line(playerId);
   const numbers = [goals && homeCount(goals, "gol", "gols"), assists && homeCount(assists, "assistência", "assistências")].filter(Boolean);
-  const detail = numbers.length ? numbers.join(" · ") : kind === "craque" ? "Escolhido o melhor em campo" : "Passou em branco";
   const team = day.team(playerId);
+  const detail = numbers.length ? numbers.join(" · ") : !team ? "Fora da escalação" : kind === "craque" ? "Escolhido o melhor em campo" : "Passou em branco";
   const photo = player.photoKey
     ? `<img src="${photoUrl(player)}" alt="Foto de ${escapeHtml(player.name)}" decoding="async" />`
     : `<span class="award-initials" aria-hidden="true">${escapeHtml(initials(player.name))}</span>`;
@@ -543,18 +543,20 @@ function keeperDayTotals(entries) {
 function playerAchievements(playerId) {
   const entries = playerDayEntries(playerId);
   const count = predicate => entries.filter(predicate).length;
+  // MVP e Bagre contam mesmo para quem foi escolhido sem estar na escalação.
+  const awards = field => state.matches.filter(match => !match.roundId && match[field] === playerId).length + (state.rounds || []).filter(round => round.closed && round[field] === playerId).length;
   const total = (field,keeper) => entries.filter(entry=>entry.keeper === keeper).reduce((sum,entry)=>sum+entry[field],0);
   const badges = [];
   const addSeries = (key,icon,names,goals,value,unit) => goals.forEach((goal,index)=>badges.push({key:`${key}-${goal}`,icon,name:names[index],goal,value,unlocked:value>=goal,detail:`${Math.min(value,goal)}/${goal} ${unit}`,progress:Math.min(100,value/goal*100)}));
   addSeries('line-goals','⚽',['Estreou a conta','Faro de gol','Pesadelo da defesa','Máquina de gols'],[1,10,25,50],total('goals',false),'gols na linha');
   addSeries('line-assists','🎯',['Passe com carinho','Garçom do Bagres','Mesa servida','Chef das assistências'],[1,10,25,50],total('assists',false),'assistências na linha');
   addSeries('wins','🏆',['Pegou gosto por vencer','Colecionador de quintas','Nasceu para ganhar'],[5,10,25],count(entry=>entry.result==='win'),'vitórias');
-  addSeries('mvp','⭐',['Dia de protagonista','Respeita o protagonista','Craque de carteirinha'],[1,5,10],count(entry=>entry.mvp),'MVPs');
+  addSeries('mvp','⭐',['Dia de protagonista','Respeita o protagonista','Craque de carteirinha'],[1,5,10],awards('mvpPlayerId'),'MVPs');
   addSeries('presence','📅',['Figurinha carimbada','Só falta morar na quadra','Patrimônio do Bagres'],[5,10,25],new Set(entries.map(entry=>entry.date)).size,'dias jogados');
   addSeries('keeper-days','🧤',['Assumiu a bronca','Dono da meta','Guardião do Bagres'],[5,10,25],new Set(entries.filter(entry=>entry.keeper).map(entry=>entry.date)).size,'dias no gol');
   addSeries('keeper-goals','⚽',['Até o goleiro deixou o dele','Saiu do gol para o abraço','Goleiro artilheiro','Luvas e chuteira quente'],[1,3,5,10],total('goals',true),'gols como goleiro');
   addSeries('keeper-assists','🎯',['De luva também serve','Reposição com endereço','Lançamento de respeito','Garçom de luvas'],[1,3,5,10],total('assists',true),'assistências como goleiro');
-  addSeries('bagre','🐟',['Batismo de bagre'],[1],count(entry=>entry.bagre),'Bagre');
+  addSeries('bagre','🐟',['Batismo de bagre'],[1],awards('bolaMurchaPlayerId'),'Bagre');
   const keeperDays = keeperDayTotals(entries);
   const best = keeperDays.length ? Math.min(...keeperDays.map(day=>day.conceded)) : null;
   [20,15,10,8,6].forEach((limit,index)=>{
@@ -782,15 +784,43 @@ function renderContributions() {
   renderMatchAwards();
 }
 
+// MVP e Bagre: primeiro quem jogou; depois o resto do elenco, que só entra com confirmação.
 function renderMatchAwards() {
   const participants = activeTeamKeys().flatMap(entryPlayers);
-  [["#matchMvp", "Escolha o MVP"], ["#matchBolaMurcha", "Escolha o Bagre"]].forEach(([selector, placeholder]) => {
+  const inLineup = new Set(participants.map(player => player.id));
+  const outside = participants.length ? state.players.filter(player => !inLineup.has(player.id)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")) : [];
+  const options = list => list.map(player => `<option value="${escapeHtml(player.id)}">${escapeHtml(player.name)}</option>`).join("");
+  [["#matchMvp", "Escolha o MVP", "mvpPlayerId"], ["#matchBolaMurcha", "Escolha o Bagre", "bolaMurchaPlayerId"]].forEach(([selector, placeholder, field]) => {
     const select = $(selector);
-    const previous = select.value || currentRound()?.[selector === "#matchMvp" ? "mvpPlayerId" : "bolaMurchaPlayerId"];
-    select.innerHTML = `<option value="">${placeholder}</option>${participants.map(player => `<option value="${escapeHtml(player.id)}">${escapeHtml(player.name)}</option>`).join("")}`;
-    if (participants.some(player => player.id === previous)) select.value = previous;
+    const saved = currentRound()?.[field];
+    const previous = select.value || saved;
+    select.innerHTML = `<option value="">${placeholder}</option>${outside.length ? `<optgroup label="Na escalação">${options(participants)}</optgroup><optgroup label="Fora da escalação">${options(outside)}</optgroup>` : options(participants)}`;
+    // Quem saiu da escalação continua escolhido só se já tinha sido confirmado (ou salvo na rodada).
+    const keep = !!previous && state.players.some(player => player.id === previous) && (inLineup.has(previous) || previous === saved || previous === select.dataset.outsider);
+    select.value = keep ? previous : "";
+    select.dataset.outsider = keep && !inLineup.has(previous) ? previous : "";
+    select.dataset.last = select.value;
     select.disabled = participants.length === 0;
   });
+}
+
+let awardConfirmAnswer = null;
+function settleAwardConfirm(accepted) {
+  const answer = awardConfirmAnswer;
+  awardConfirmAnswer = null;
+  closeDialog($("#awardConfirmDialog"));
+  answer?.(accepted);
+}
+function confirmOutsideAward(kind, player) {
+  const dialog = $("#awardConfirmDialog");
+  const label = kind === "mvp" ? "MVP" : "Bagre";
+  const message = `${player.name} não está na escalação desta partida. Quer escolher mesmo assim como ${label}?`;
+  if (typeof dialog.showModal !== "function") return Promise.resolve(confirm(message));
+  if (awardConfirmAnswer) settleAwardConfirm(false);
+  $("#awardConfirmMark").innerHTML = `<svg class="icon"><use href="#i-${kind === "mvp" ? "crown" : "catfish"}" /></svg>`;
+  $("#awardConfirmMessage").textContent = message;
+  $("#awardConfirmOk").textContent = `Confirmar ${label}`;
+  return new Promise(resolve => { awardConfirmAnswer = resolve; openDialog(dialog); });
 }
 
 function matchMonthlyMembers() {
@@ -1431,9 +1461,9 @@ function captureRoundEntries(round) {
     if (![goals,assists].every(n => Number.isInteger(n) && n >= 0 && n <= 99)) throw new Error("Informe gols e assistências inteiros entre 0 e 99.");
     round.contributions[id] = {goals,assists};
   }
-  const ids = Object.values(round.teams).flat();
-  round.mvpPlayerId = ids.includes($("#matchMvp").value) ? $("#matchMvp").value : null;
-  round.bolaMurchaPlayerId = ids.includes($("#matchBolaMurcha").value) ? $("#matchBolaMurcha").value : null;
+  const known = id => state.players.some(player => player.id === id);
+  round.mvpPlayerId = known($("#matchMvp").value) ? $("#matchMvp").value : null;
+  round.bolaMurchaPlayerId = known($("#matchBolaMurcha").value) ? $("#matchBolaMurcha").value : null;
 }
 async function closeRound() {
   const round = currentRound();
@@ -1656,6 +1686,17 @@ $("#aiPrompt").addEventListener("input", updateAiPromptCount);
 $("#aiAlertAction").addEventListener("click", () => { closeDialog($("#aiAlertDialog")); openAiSettings(); });
 $$("[data-close-dialog]").forEach(button => button.addEventListener("click", () => closeDialog(button.closest("dialog"))));
 $$("dialog.app-dialog").forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) closeDialog(dialog); }));
+$("#awardConfirmOk").addEventListener("click", () => settleAwardConfirm(true));
+$("#awardConfirmCancel").addEventListener("click", () => settleAwardConfirm(false));
+// Esc ou clique fora = cancelar. Um "close" atrasado não pode fechar uma confirmação já reaberta.
+$("#awardConfirmDialog").addEventListener("close", event => { if (!event.currentTarget.open) settleAwardConfirm(false); });
+[["#matchMvp", "mvp"], ["#matchBolaMurcha", "bagre"]].forEach(([selector, kind]) => $(selector).addEventListener("change", async () => {
+  const select = $(selector), id = select.value;
+  const player = state.players.find(item => item.id === id);
+  if (!player || activeTeamKeys().flatMap(entryPlayers).some(item => item.id === id)) { select.dataset.last = id; select.dataset.outsider = ""; return; }
+  if (await confirmOutsideAward(kind, player)) { select.value = id; select.dataset.last = id; select.dataset.outsider = id; }
+  else select.value = select.dataset.last || "";
+}));
 $("#addFirstPlayer").addEventListener("click", () => { setTab("jogadores"); $("#playerName").focus(); });
 $("#selectMonthly").addEventListener("click", async () => {
   if (!adminMode || currentRound()) return;
@@ -1767,9 +1808,9 @@ $("#scoreForm").addEventListener("submit", event => {
   }
   const mvpPlayerId = $("#matchMvp").value;
   const bolaMurchaPlayerId = $("#matchBolaMurcha").value;
-  const participantIds = new Set([...teamA, ...teamB].map(player => player.id));
-  if (!participantIds.has(mvpPlayerId) || !participantIds.has(bolaMurchaPlayerId)) {
-    showToast("Escolha um MVP e um Bagre entre os jogadores da partida");
+  const knownIds = new Set(state.players.map(player => player.id));
+  if (!knownIds.has(mvpPlayerId) || !knownIds.has(bolaMurchaPlayerId)) {
+    showToast("Escolha o MVP e o Bagre da partida");
     return;
   }
   for (const [team, score] of [[teamA, scoreA], [teamB, scoreB]]) {

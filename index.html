@@ -253,7 +253,7 @@
             <label>Bagre
               <select id="matchBolaMurcha" required><option value="">Escolha o Bagre</option></select>
             </label>
-            <p class="muted small">Selecione um nome para cada categoria.</p>
+            <p class="muted small">Selecione um nome para cada categoria. Quem ficou fora da escalação aparece no fim da lista.</p>
           </div>
           <button id="saveRoundDraft" class="button secondary hidden" type="button">Salvar totais parciais do dia</button>
           <button class="button primary" type="submit">Salvar resultado</button>
@@ -503,6 +503,15 @@
       <div class="dialog-actions">
         <button type="button" class="button ghost" data-close-dialog>Fechar</button>
         <button type="button" class="button primary" id="aiAlertAction">Trocar chave</button>
+      </div>
+    </dialog>
+    <dialog class="app-dialog ai-alert" id="awardConfirmDialog" aria-labelledby="awardConfirmTitle" aria-describedby="awardConfirmMessage">
+      <span class="ai-alert-mark" id="awardConfirmMark" aria-hidden="true"><svg class="icon"><use href="#i-crown" /></svg></span>
+      <h2 id="awardConfirmTitle">Fora da escalação</h2>
+      <p id="awardConfirmMessage"></p>
+      <div class="dialog-actions">
+        <button type="button" class="button ghost" id="awardConfirmCancel">Cancelar</button>
+        <button type="button" class="button primary" id="awardConfirmOk">Confirmar</button>
       </div>
     </dialog>
 
