@@ -540,10 +540,17 @@ function keeperDayTotals(entries) {
   entries.filter(entry=>entry.keeper).forEach(entry=>days.set(entry.date,(days.get(entry.date)||0)+entry.conceded));
   return [...days].map(([date,conceded])=>({date,conceded}));
 }
-// Rivalries use actual opposing rosters and individual scores, never the round champion.
+// A closed three-team round contributes one result per rival, using the day champion.
 function playerRivalries(playerId) {
   const rivals = new Map();
-  const chronological = state.matches.map((match,index)=>({match,index})).sort((a,b)=>
+  const results = state.matches.filter(match=>!match.roundId);
+  for (const round of state.rounds || []) {
+    if (!round.closed || !['A','B','C'].includes(round.championTeam)) continue;
+    for (const key of ['A','B','C'].filter(key=>key!==round.championTeam)) {
+      results.push({date:round.date,teamA:round.teams[round.championTeam] || [],teamB:round.teams[key] || [],scoreA:1,scoreB:0});
+    }
+  }
+  const chronological = results.map((match,index)=>({match,index})).sort((a,b)=>
     (a.match.date || '').localeCompare(b.match.date || '') ||
     (a.match.scheduleIndex ?? -a.index) - (b.match.scheduleIndex ?? -b.index));
   for (const {match} of chronological) {
@@ -643,7 +650,7 @@ function renderAchievements(player) {
     ['🤝','Duplas', badge=>badge.key.startsWith('duo-')],
     ['🦆','Rivalidades', badge=>badge.key.startsWith('rivalry-')]
   ];
-  $('#playerAchievements').innerHTML = `<div class="section-heading"><div><h3>Conquistas</h3></div><span class="pill">${earned.length} de ${badges.length}</span></div><p class="muted achievement-help">Medalhas do histórico completo, independentemente do filtro dos Stats.</p><div class="achievement-showcase"><h4 class="achievement-section-title">🏅 Já conquistadas <span>${earned.length}</span></h4>${earned.length?`<div class="achievement-grid">${earned.slice(-3).map(card).join('')}</div>`:'<p class="achievement-empty">Suas primeiras medalhas vão aparecer aqui. Confira as próximas metas abaixo.</p>'}<h4 class="achievement-section-title">🎯 Próximas metas</h4><div class="achievement-grid">${next.map(card).join('')}</div></div><div class="achievement-catalog"><p class="achievement-catalog-label">Explore todas as conquistas</p>${groups.map(([icon,label,predicate])=>{const items=badges.filter(predicate);return `<details class="achievement-category"><summary><span>${icon} ${label}</span><span class="achievement-category-count">${items.filter(badge=>badge.unlocked).length}/${items.length} <span aria-hidden="true">⌄</span></span></summary><div class="achievement-grid">${items.map(card).join('')}</div></details>`;}).join('')}</div><details class="achievement-rules"><summary>Como funciona?</summary><p>Contamos apenas jogos e rodadas encerrados. Um dia com três times conta uma vez nas conquistas gerais e de duplas. Nas rivalidades, cada confronto entre times conta separadamente, após o encerramento da rodada; empates não somam vitórias e as metas de 10, 20 e 30 vitórias exigem pelo menos 5 vitórias a mais que derrotas contra o adversário. Nas conquistas de sequência, empates e derrotas interrompem as vitórias seguidas. Pedra no Sapato e Deu o Troco permanecem conquistadas após atingir a sequência, enquanto os resultados que deram origem a elas forem mantidos. As conquistas são recalculadas se os resultados forem corrigidos.</p></details>`;
+  $('#playerAchievements').innerHTML = `<div class="section-heading"><div><h3>Conquistas</h3></div><span class="pill">${earned.length} de ${badges.length}</span></div><p class="muted achievement-help">Medalhas do histórico completo, independentemente do filtro dos Stats.</p><div class="achievement-showcase"><h4 class="achievement-section-title">🏅 Já conquistadas <span>${earned.length}</span></h4>${earned.length?`<div class="achievement-grid">${earned.slice(-3).map(card).join('')}</div>`:'<p class="achievement-empty">Suas primeiras medalhas vão aparecer aqui. Confira as próximas metas abaixo.</p>'}<h4 class="achievement-section-title">🎯 Próximas metas</h4><div class="achievement-grid">${next.map(card).join('')}</div></div><div class="achievement-catalog"><p class="achievement-catalog-label">Explore todas as conquistas</p>${groups.map(([icon,label,predicate])=>{const items=badges.filter(predicate);return `<details class="achievement-category"><summary><span>${icon} ${label}</span><span class="achievement-category-count">${items.filter(badge=>badge.unlocked).length}/${items.length} <span aria-hidden="true">⌄</span></span></summary><div class="achievement-grid">${items.map(card).join('')}</div></details>`;}).join('')}</div><details class="achievement-rules"><summary>Como funciona?</summary><p>Contamos apenas jogos e rodadas encerrados. Um dia com três times conta uma vez nas conquistas gerais e de duplas. Nas rivalidades, uma rodada de três times conta uma única vez por adversário: o campeão do dia vence os jogadores dos outros dois times. Os derrotados perdem para o campeão, sem resultado de rivalidade entre si. Os placares dos jogos curtos não entram nessa contagem; empates não somam vitórias e as metas de 10, 20 e 30 vitórias exigem pelo menos 5 vitórias a mais que derrotas contra o adversário. Nas conquistas de sequência, empates e derrotas interrompem as vitórias seguidas. Pedra no Sapato e Deu o Troco permanecem conquistadas após atingir a sequência, enquanto os resultados que deram origem a elas forem mantidos. As conquistas são recalculadas se os resultados forem corrigidos.</p></details>`;
 }
 
 function renderKeeperChart(player,matches) {
