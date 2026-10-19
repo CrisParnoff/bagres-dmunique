@@ -540,6 +540,26 @@ function keeperDayTotals(entries) {
   entries.filter(entry=>entry.keeper).forEach(entry=>days.set(entry.date,(days.get(entry.date)||0)+entry.conceded));
   return [...days].map(([date,conceded])=>({date,conceded}));
 }
+// Rivalries use actual opposing rosters and individual scores, never the round champion.
+function playerRivalries(playerId) {
+  const rivals = new Map();
+  for (const match of state.matches) {
+    if (match.roundId && !(state.rounds || []).some(round => round.id === match.roundId && round.closed)) continue;
+    if (match.scoreA == null || match.scoreB == null || match.scoreA === '' || match.scoreB === '') continue;
+    const scoreA = Number(match.scoreA), scoreB = Number(match.scoreB);
+    if (!Number.isFinite(scoreA) || !Number.isFinite(scoreB)) continue;
+    const inA = (match.teamA || []).includes(playerId), inB = (match.teamB || []).includes(playerId);
+    if (inA === inB) continue;
+    const own = inA ? scoreA : scoreB, other = inA ? scoreB : scoreA;
+    const ownIds = new Set(inA ? match.teamA : match.teamB);
+    for (const id of new Set(inA ? match.teamB || [] : match.teamA || [])) {
+      if (ownIds.has(id)) continue;
+      if (!rivals.has(id)) rivals.set(id, {id, wins:0, draws:0, losses:0});
+      rivals.get(id)[own === other ? 'draws' : own > other ? 'wins' : 'losses']++;
+    }
+  }
+  return [...rivals.values()].sort((a,b) => b.wins-a.wins || (a.losses-b.losses) || a.id.localeCompare(b.id));
+}
 function playerAchievements(playerId) {
   const entries = playerDayEntries(playerId);
   const count = predicate => entries.filter(predicate).length;
@@ -577,6 +597,14 @@ function playerAchievements(playerId) {
     const person = id => state.players.find(player=>player.id===id)?.name || 'Jogador removido';
     badges.push({key,icon,name,unlocked:winners.length>0,progress:Math.min(100,value/goal*100),detail:`${Math.min(value,goal)}/${goal} ${result==='win'?'vitórias':'derrotas'} com a mesma pessoa`,extra:winners.length ? winners.map(partner=>`${person(partner.id)} · ${partner[result].size}`).join(' / ') : sorted.length ? `Parceria mais próxima: ${person(sorted[0].id)}` : 'Jogue no mesmo time para começar'});
   }
+  const rivals = playerRivalries(playerId);
+  const record = rival => `${state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido'}: ${rival.wins}V · ${rival.draws}E · ${rival.losses}D`;
+  for (const [index,goal] of [10,20,30].entries()) {
+    const progress = rival => Math.min(100, rival.wins/goal*100, Math.max(0,rival.wins-rival.losses)/5*100);
+    const qualified = rivals.filter(rival=>rival.wins>=goal && rival.wins-rival.losses>=5);
+    const closest = [...rivals].sort((a,b)=>progress(b)-progress(a) || b.wins-a.wins)[0];
+    badges.push({key:`rivalry-${goal}`,icon:['🦆','🏡','📒'][index],name:['Meu Patinho','Freguês da Casa','Cliente Fidelidade'][index],unlocked:qualified.length>0,progress:closest?progress(closest):0,detail:`Vença o mesmo adversário ${goal} vezes, com pelo menos 5 vitórias de vantagem no confronto direto.`,extra:qualified.length?qualified.map(record).join(' / '):closest?`Mais próximo: ${record(closest)}`:'Jogue contra outros jogadores para começar'});
+  }
   return badges;
 }
 function renderAchievements(player) {
@@ -590,11 +618,12 @@ function renderAchievements(player) {
     nextFamilies.add(family(badge)); return true;
   }).sort((a,b)=>b.progress-a.progress).slice(0,3);
   const groups = [
-    ['⚽','Jogador', badge=>!badge.key.startsWith('keeper-')&&!badge.key.startsWith('duo-')],
+    ['⚽','Jogador', badge=>!badge.key.startsWith('keeper-')&&!badge.key.startsWith('duo-')&&!badge.key.startsWith('rivalry-')],
     ['🧤','Goleiro', badge=>badge.key.startsWith('keeper-')],
-    ['🤝','Duplas', badge=>badge.key.startsWith('duo-')]
+    ['🤝','Duplas', badge=>badge.key.startsWith('duo-')],
+    ['🦆','Rivalidades', badge=>badge.key.startsWith('rivalry-')]
   ];
-  $('#playerAchievements').innerHTML = `<div class="section-heading"><div><h3>Conquistas</h3></div><span class="pill">${earned.length} de ${badges.length}</span></div><p class="muted achievement-help">Medalhas do histórico completo, independentemente do filtro dos Stats.</p><div class="achievement-showcase"><h4 class="achievement-section-title">🏅 Já conquistadas <span>${earned.length}</span></h4>${earned.length?`<div class="achievement-grid">${earned.slice(-3).map(card).join('')}</div>`:'<p class="achievement-empty">Suas primeiras medalhas vão aparecer aqui. Confira as próximas metas abaixo.</p>'}<h4 class="achievement-section-title">🎯 Próximas metas</h4><div class="achievement-grid">${next.map(card).join('')}</div></div><div class="achievement-catalog"><p class="achievement-catalog-label">Explore todas as conquistas</p>${groups.map(([icon,label,predicate])=>{const items=badges.filter(predicate);return `<details class="achievement-category"><summary><span>${icon} ${label}</span><span class="achievement-category-count">${items.filter(badge=>badge.unlocked).length}/${items.length} <span aria-hidden="true">⌄</span></span></summary><div class="achievement-grid">${items.map(card).join('')}</div></details>`;}).join('')}</div><details class="achievement-rules"><summary>Como funciona?</summary><p>Contamos apenas jogos e rodadas encerrados. Um dia com três times conta uma vez. As conquistas são recalculadas se os resultados forem corrigidos.</p></details>`;
+  $('#playerAchievements').innerHTML = `<div class="section-heading"><div><h3>Conquistas</h3></div><span class="pill">${earned.length} de ${badges.length}</span></div><p class="muted achievement-help">Medalhas do histórico completo, independentemente do filtro dos Stats.</p><div class="achievement-showcase"><h4 class="achievement-section-title">🏅 Já conquistadas <span>${earned.length}</span></h4>${earned.length?`<div class="achievement-grid">${earned.slice(-3).map(card).join('')}</div>`:'<p class="achievement-empty">Suas primeiras medalhas vão aparecer aqui. Confira as próximas metas abaixo.</p>'}<h4 class="achievement-section-title">🎯 Próximas metas</h4><div class="achievement-grid">${next.map(card).join('')}</div></div><div class="achievement-catalog"><p class="achievement-catalog-label">Explore todas as conquistas</p>${groups.map(([icon,label,predicate])=>{const items=badges.filter(predicate);return `<details class="achievement-category"><summary><span>${icon} ${label}</span><span class="achievement-category-count">${items.filter(badge=>badge.unlocked).length}/${items.length} <span aria-hidden="true">⌄</span></span></summary><div class="achievement-grid">${items.map(card).join('')}</div></details>`;}).join('')}</div><details class="achievement-rules"><summary>Como funciona?</summary><p>Contamos apenas jogos e rodadas encerrados. Um dia com três times conta uma vez nas conquistas gerais e de duplas. Nas rivalidades, cada confronto entre times conta separadamente, após o encerramento da rodada; empates não somam vitórias e é preciso ter pelo menos 5 vitórias a mais que derrotas contra o adversário. As conquistas são recalculadas se os resultados forem corrigidos.</p></details>`;
 }
 
 function renderKeeperChart(player,matches) {
