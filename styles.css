@@ -878,11 +878,11 @@ body:not(.admin-mode) .availability-label input:disabled::after { width: 11px; h
 .player-form {
   padding: 18px;
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 110px minmax(200px, 1.2fr) auto;
+  grid-template-columns: minmax(160px, 1fr) 110px minmax(180px, 1fr) minmax(180px, 1fr);
   align-items: end;
   gap: 12px;
 }
-.player-form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.player-form-actions { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
 .player-photo-control { min-width: 0; }
 .player-photo-control > span { font-weight: 500; color: var(--muted); font-size: .76rem; }
 .roster-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 14px; }
@@ -1340,7 +1340,7 @@ tr.leader td { background: #361113; }
    ========================================================================= */
 @media (max-width: 1080px) {
   .player-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .player-form { grid-template-columns: minmax(160px, 1fr) 100px minmax(180px, 1fr); }
+  .player-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .player-form-actions { grid-column: 1 / -1; }
 }
 @media (max-width: 900px) {
@@ -3142,3 +3142,7 @@ input[type="file"]::file-selector-button { border-radius: 7px; }
 
 /* Flutuantes */
 .app-dialog, .password-form { border-radius: var(--r-pop); }
+
+@media (max-width: 600px) {
+  .player-form > label:has(#playerGoalkeeperRating) { grid-column: 1 / -1; }
+}

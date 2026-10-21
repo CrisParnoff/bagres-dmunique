@@ -316,7 +316,8 @@
         <form id="playerForm" class="card player-form admin-only">
           <input type="hidden" id="editingId" />
           <label>Nome<input type="text" id="playerName" required maxlength="28" placeholder="Ex.: Gabriel" autocomplete="off" /></label>
-          <label>Pontuação<input type="number" inputmode="numeric" id="playerRating" required min="1" max="5" value="3" /></label>
+          <label>Nota na linha<input type="number" inputmode="numeric" id="playerRating" required min="1" max="5" step="1" value="3" /></label>
+          <label>Nota no gol<select id="playerGoalkeeperRating"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select><span class="small">Usada no equilíbrio quando todos os times têm goleiro fixo. Padrão: 3.</span></label>
           <label class="player-photo-control">Foto do jogador<input type="file" id="playerPhoto" accept="image/jpeg,image/png,image/webp" /><span class="small">JPG, PNG ou WebP · até 2 MB</span></label>
           <div class="player-form-actions"><button class="button primary" type="submit" id="playerSubmit">Adicionar jogador</button>
           <button class="button ghost hidden" type="button" id="cancelEdit">Cancelar</button>

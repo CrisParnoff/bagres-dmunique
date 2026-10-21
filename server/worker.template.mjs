@@ -82,6 +82,7 @@ function validState(state) {
     if (player.photoKey != null && player.photoKey !== `players/${player.id}/${player.photoKey.split("/").at(-1)}`) return false;
     if (player.photoKey != null && !/^players\/[a-zA-Z0-9_-]{1,64}\/[a-f0-9-]{36}$/.test(player.photoKey)) return false;
     if (player.fixedGoalkeeper != null && typeof player.fixedGoalkeeper !== "boolean") return false;
+    if (player.goalkeeperRating != null && (!Number.isInteger(player.goalkeeperRating) || player.goalkeeperRating < 1 || player.goalkeeperRating > 5)) return false;
     ids.add(player.id);
   }
   const keepers = state.players.filter(player => player.available !== false && player.fixedGoalkeeper);
@@ -225,7 +226,7 @@ Regras obrigatórias, que valem acima de qualquer orientação:
 1. Use todos os jogadores da lista, cada um em exatamente um time, identificados pelo código (J1, J2...).
 2. Os times têm a mesma quantidade de jogadores ou diferença de no máximo um.
 3. No máximo um goleiro fixo por time; havendo goleiros fixos, espalhe um por time.
-4. O nível vai de 1 (mais fraco) a 5 (mais forte). A força dos times deve ficar o mais parecida possível; a soma dos níveis dos jogadores de linha é a referência principal.
+4. O nível vai de 1 (mais fraco) a 5 (mais forte). A força dos times deve ficar o mais parecida possível. Havendo um goleiro por time, some também o nível no gol de cada goleiro. Havendo somente um goleiro, ele tem peso 5; havendo dois goleiros para três times, eles têm peso zero. Para jogadores de linha, use o nível na linha.
 Siga as orientações da diretoria (características dos jogadores, quem joga bem junto, quem não deve ficar no mesmo time) sempre que não quebrarem as regras.
 Responda somente com o JSON pedido. Em "explanation", explique em português, em até três frases curtas, o critério usado.`;
 
@@ -238,7 +239,7 @@ function balancePrompt(body, guidance, feedback) {
     ...body.teams.map(key => `${key} = ${body.names[key]} (camisa ${KIT_COLORS[key]})`),
     "",
     `Jogadores confirmados (${body.players.length}):`,
-    ...body.players.map((player, index) => `J${index + 1} | ${player.name} | nível ${player.rating} | ${player.keeper ? "goleiro fixo" : "linha"}`),
+    ...body.players.map((player, index) => `J${index + 1} | ${player.name} | nível ${player.rating} | ${player.keeper ? "goleiro fixo · nível no gol" : "linha"}`),
     ...(feedback ? ["", `Sua resposta anterior foi recusada porque ${feedback} Corrija e responda de novo.`] : [])
   ].join("\n");
 }

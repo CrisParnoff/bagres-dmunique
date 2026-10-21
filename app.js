@@ -175,9 +175,20 @@ function availablePlayers() {
   return state.players.filter(player => player.available !== false);
 }
 
+function goalkeeperRating(player) {
+  return Number.isInteger(player.goalkeeperRating) && player.goalkeeperRating >= 1 && player.goalkeeperRating <= 5 ? player.goalkeeperRating : 3;
+}
+
 function balanceWeight(player) {
   if (!player.fixedGoalkeeper) return Number(player.rating || 0);
-  return availablePlayers().filter(item => item.fixedGoalkeeper).length === 1 ? 5 : 0;
+  const count = availablePlayers().filter(item => item.fixedGoalkeeper).length;
+  if (count === activeTeamKeys().length) return goalkeeperRating(player);
+  return count === 1 ? 5 : 0;
+}
+
+function goalkeeperBalanceLabel(player) {
+  const complete = availablePlayers().filter(item => item.fixedGoalkeeper).length === activeTeamKeys().length;
+  return complete ? `GK ${goalkeeperRating(player)}` : balanceWeight(player) === 5 ? 'GK 5' : 'GK';
 }
 
 function teamTotal(team) {
@@ -736,7 +747,7 @@ function renderTeams() {
     $(target).innerHTML = entryPlayers(team).map(player => `
       <div class="team-player ${selectedSwapId === player.id ? "swap-selected" : ""}">
         <span class="team-person">${playerAvatar(player)}<b>${escapeHtml(player.name)}${player.fixedGoalkeeper ? '<small class="keeper-badge">Goleiro fixo</small>' : ""}</b></span>
-        ${adminMode ? `<span class="team-player-actions"><span class="rating" title="${player.fixedGoalkeeper ? (balanceWeight(player) === 5 ? "Goleiro único: peso 5 no equilíbrio dos times" : "Goleiro fixo: nota da linha desconsiderada") : "Nota na linha"}">${player.fixedGoalkeeper ? (balanceWeight(player) === 5 ? "GK 5" : "GK") : player.rating || "—"}</span><button class="swap-button" type="button" data-swap="${escapeHtml(player.id)}" aria-pressed="${selectedSwapId === player.id}" aria-label="${selectedSwapId === player.id ? "Cancelar troca de" : "Selecionar para troca:"} ${escapeHtml(player.name)}">${selectedSwapId === player.id ? "Selecionado" : "Trocar"}</button></span>` : ""}
+        ${adminMode ? `<span class="team-player-actions"><span class="rating" title="${player.fixedGoalkeeper ? (availablePlayers().filter(item=>item.fixedGoalkeeper).length === activeTeamKeys().length ? "Nota no gol usada no equilíbrio" : balanceWeight(player) === 5 ? "Goleiro único: peso 5 no equilíbrio dos times" : "Goleiros incompletos: nota desconsiderada") : "Nota na linha"}">${player.fixedGoalkeeper ? goalkeeperBalanceLabel(player) : player.rating || "—"}</span><button class="swap-button" type="button" data-swap="${escapeHtml(player.id)}" aria-pressed="${selectedSwapId === player.id}" aria-label="${selectedSwapId === player.id ? "Cancelar troca de" : "Selecionar para troca:"} ${escapeHtml(player.name)}">${selectedSwapId === player.id ? "Selecionado" : "Trocar"}</button></span>` : ""}
       </div>`).join("");
   };
   drawTeam("A", "#teamAList");
@@ -899,7 +910,7 @@ function renderSquad() {
     .sort((a, b) => (a.available === false) - (b.available === false) || (adminMode ? b.rating - a.rating : 0) || a.name.localeCompare(b.name, "pt-BR"))
     .map(player => `
       <div class="squad-row ${player.available === false ? "unavailable" : ""}">
-        <label class="availability-label"><input type="checkbox" data-available="${player.id}" ${player.available !== false ? "checked" : ""} ${!adminMode ? "disabled" : ""} /><span class="squad-person"><span>${escapeHtml(player.name)}${monthly.has(player.id) ? '<span class="squad-monthly-star" title="Mensalista no mês da partida" aria-label="Mensalista no mês da partida">*</span>' : ""}</span>${adminMode ? `<span class="rating">${player.fixedGoalkeeper ? (balanceWeight(player) === 5 ? "GK 5" : "GK") : player.rating || "—"}</span>` : ""}</span></label>
+        <label class="availability-label"><input type="checkbox" data-available="${player.id}" ${player.available !== false ? "checked" : ""} ${!adminMode ? "disabled" : ""} /><span class="squad-person"><span>${escapeHtml(player.name)}${monthly.has(player.id) ? '<span class="squad-monthly-star" title="Mensalista no mês da partida" aria-label="Mensalista no mês da partida">*</span>' : ""}</span>${adminMode ? `<span class="rating">${player.fixedGoalkeeper ? goalkeeperBalanceLabel(player) : player.rating || "—"}</span>` : ""}</span></label>
         ${adminMode ? `<select data-assign="${player.id}" aria-label="Time de ${escapeHtml(player.name)}" ${player.available === false ? "disabled" : ""}>
           <option value="" ${!player.team ? "selected" : ""}>Sem time</option>
           <option value="A" ${player.team === "A" ? "selected" : ""}>${escapeHtml(state.teamAName)}</option>
@@ -948,7 +959,7 @@ function renderRoster() {
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
     .map(player => `
       <div class="roster-row">
-        <div class="roster-person">${playerAvatar(player, "roster-avatar")}<div class="roster-info"><b>${escapeHtml(player.name)}</b><span>${adminMode ? `Nota ${player.rating} · ` : ""}${player.stats.games} jogos</span></div></div>
+        <div class="roster-person">${playerAvatar(player, "roster-avatar")}<div class="roster-info"><b>${escapeHtml(player.name)}</b><span>${adminMode ? `Linha ${player.rating} · Gol ${goalkeeperRating(player)}${player.goalkeeperRating == null ? " (padrão)" : ""} · ` : ""}${player.stats.games} jogos</span></div></div>
         <div class="row-actions admin-only">
           <button class="mini-button" data-edit="${player.id}" title="Editar ${escapeHtml(player.name)}">✎</button>
           <button class="mini-button danger" data-delete="${player.id}" title="Excluir ${escapeHtml(player.name)}">×</button>
@@ -1278,7 +1289,7 @@ async function aiBalance() {
       body: JSON.stringify({
         teams: keys,
         names: Object.fromEntries(keys.map(key => [key, String(state[`team${key}Name`] || TEAM_DEFAULTS[key]).slice(0, 30)])),
-        players: players.map(player => ({ id: player.id, name: player.name, rating: Math.min(5, Math.max(1, Math.round(Number(player.rating) || 3))), keeper: Boolean(player.fixedGoalkeeper) }))
+        players: players.map(player => ({ id: player.id, name: player.name, rating: Math.min(5, Math.max(1, Math.round(Number(player.fixedGoalkeeper ? goalkeeperRating(player) : player.rating) || 3))), keeper: Boolean(player.fixedGoalkeeper) }))
       })
     });
     const result = await response.json().catch(() => ({}));
@@ -1310,6 +1321,7 @@ function startEdit(id) {
   $("#editingId").value = player.id;
   $("#playerName").value = player.name;
   $("#playerRating").value = player.rating;
+  $("#playerGoalkeeperRating").value = goalkeeperRating(player);
   $("#playerPhoto").value = "";
   $("#playerSubmit").textContent = "Salvar alterações";
   $("#cancelEdit").classList.remove("hidden");
@@ -1337,6 +1349,7 @@ function startStatsEdit(id) {
 function cancelEdit() {
   $("#playerForm").reset();
   $("#playerRating").value = 3;
+  $("#playerGoalkeeperRating").value = 3;
   $("#editingId").value = "";
   $("#playerSubmit").textContent = "Adicionar jogador";
   $("#cancelEdit").classList.add("hidden");
@@ -1800,8 +1813,9 @@ $("#playerForm").addEventListener("submit", event => {
   event.preventDefault();
   const name = $("#playerName").value.trim();
   const rating = Number($("#playerRating").value);
+  const keeperRating = Number($("#playerGoalkeeperRating").value);
   const editingId = $("#editingId").value;
-  if (!name || rating < 1 || rating > 5) return;
+  if (!name || !Number.isInteger(rating) || rating < 1 || rating > 5 || !Number.isInteger(keeperRating) || keeperRating < 1 || keeperRating > 5) return;
   const duplicate = state.players.some(player => player.name.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR") && player.id !== editingId);
   if (duplicate) { showToast("Já existe um jogador com esse nome"); return; }
   const file = $("#playerPhoto").files[0];
@@ -1813,9 +1827,9 @@ $("#playerForm").addEventListener("submit", event => {
   let oldPhotoKey = null;
   if (editingId) {
     player = state.players.find(item => item.id === editingId);
-    if (player) { oldPhotoKey = player.photoKey || null; player.name = name; player.rating = rating; }
+    if (player) { oldPhotoKey = player.photoKey || null; player.name = name; player.rating = rating; player.goalkeeperRating = keeperRating; }
   } else {
-    player = { id: `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, rating, available: true, team: null, stats: emptyStats() };
+    player = { id: `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, rating, goalkeeperRating: keeperRating, available: true, team: null, stats: emptyStats() };
     state.players.push(player);
   }
   (async () => {

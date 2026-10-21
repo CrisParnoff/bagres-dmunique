@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 const nodes = new Map();
 function node(selector) {
-  if (!nodes.has(selector)) nodes.set(selector,{ value:'',innerHTML:'',textContent:'',style:{}, dataset:{},className:'',disabled:false,required:false, classList:{add(){},remove(){},toggle(){}},querySelectorAll(){return [];},addEventListener(){},reset(){},scrollIntoView(){},setAttribute(){} });
+  if (!nodes.has(selector)) nodes.set(selector,{ value:'',innerHTML:'',textContent:'',style:{}, dataset:{},className:'',disabled:false,required:false, classList:{add(){},remove(){},toggle(){}},querySelectorAll(){return [];},addEventListener(){},focus(){},reset(){},scrollIntoView(){},setAttribute(){} });
   return nodes.get(selector);
 }
 const context = vm.createContext({console,structuredClone,Map,Set,Date,setTimeout,clearTimeout,document:{querySelector:node,querySelectorAll(){return [];}},localStorage:{getItem(){return null;}},confirm:()=>true});
@@ -286,3 +286,36 @@ assert.equal(run('playerDayEntries(badgeRoundPlayer).filter(e=>e.date===state.ro
 run('state.rounds[0].closed=false;');
 assert.equal(run('playerDayEntries(badgeRoundPlayer).filter(e=>e.date===state.rounds[0].date).length'),0,'reopened rounds excluded');
 console.log('Passed: keeper focus, chart, milestones, partners, strict thresholds, correction and single-day rounds.');
+
+// Keeper ratings are independent of line ratings, private, and used only with full coverage.
+for (const n of [10,15]) {
+  fixture(n);
+  run(`state.players.forEach((p,i)=>{p.rating=i===0?5:1+i%5;p.fixedGoalkeeper=i<activeTeamKeys().length;p.goalkeeperRating=i===0?1:i===1?5:3;}); autoBalance();`);
+  assert.equal(run('balanceWeight(state.players[0])'),1);
+  assert.equal(run('balanceWeight(state.players[1])'),5);
+  assert.equal(run('state.players[0].rating'),5);
+  assert.ok(run('activeTeamKeys().every(k=>teamPlayers(k).filter(p=>p.fixedGoalkeeper).length===1)'));
+  assert.ok(run('activeTeamKeys().every(k=>teamTotal(k)===teamPlayers(k).reduce((sum,p)=>sum+(p.fixedGoalkeeper?goalkeeperRating(p):p.rating),0))'));
+  assert.equal(run('goalkeeperBalanceLabel(state.players[0])'),'GK 1');
+  run(`delete state.players[0].goalkeeperRating;`);
+  assert.equal(run('balanceWeight(state.players[0])'),3,'legacy keeper defaults to three');
+  run(`startEdit('p1');`);
+  assert.equal(Number(nodes.get('#playerGoalkeeperRating').value),5);
+  run('cancelEdit();');
+  assert.equal(Number(nodes.get('#playerGoalkeeperRating').value),3);
+  run(`state.players[0].fixedGoalkeeper=false;`);
+  assert.equal(run('balanceWeight(state.players[0])'),5,'line mode uses line rating');
+}
+fixture(15); run('state.players[0].fixedGoalkeeper=true;state.players[0].goalkeeperRating=1;');
+assert.equal(run('balanceWeight(state.players[0])'),5,'single keeper rule retained');
+run('state.players[1].fixedGoalkeeper=true;');
+assert.equal(run('balanceWeight(state.players[0])'),0,'two keepers for three teams retain neutral weight');
+for (const value of [0,6,2.5,'3']) assert.equal(valid(mutate(s=>s.players[0].goalkeeperRating=value)),false);
+assert.ok(valid(mutate(s=>s.players[0].goalkeeperRating=5)));
+backend.sample=mutate(s=>s.players[0].goalkeeperRating=5);
+assert.equal(vm.runInContext('publicState(sample).players[0].goalkeeperRating',backend),undefined,'keeper rating stays admin-only');
+assert.match(vm.runInContext('balancePrompt({teams:["A","B"],names:{A:"A",B:"B"},players:[{name:"Keeper",rating:5,keeper:true}]},"","")',backend),/Keeper \| nível 5 \| goleiro fixo · nível no gol/);
+console.log('Passed: independent keeper rating, full two/three-team coverage, defaults, editor, backend validation, private projection and AI prompt.');
+
+fixture(6); run('state.players.forEach((p,i)=>{p.rating=[3,3,5,4,2,1][i];p.fixedGoalkeeper=i<2;p.goalkeeperRating=i===0?1:5;});autoBalance();');
+assert.equal(run('Math.abs(teamTotal("A")-teamTotal("B"))'),2,'outfield allocation compensates different keeper strengths');
