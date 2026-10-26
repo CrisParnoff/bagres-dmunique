@@ -417,6 +417,33 @@ function renderHomeMonth(monthName, monthlyMatches) {
   </li>`).join("");
 }
 
+// Compare the full history before and after the latest completed matchday.
+function recentAchievements() {
+  const closedRounds = (state.rounds || []).filter(round=>round.closed);
+  const closedIds = new Set(closedRounds.map(round=>round.id));
+  const completed = state.matches.filter(match=>!match.roundId || closedIds.has(match.roundId));
+  const date = [...completed.map(match=>match.date),...closedRounds.map(round=>round.date)].filter(Boolean).sort().at(-1);
+  if (!date) return {date:null, items:[]};
+  const history = before => ({
+    matches: completed.filter(match=>before ? match.date < date : match.date <= date),
+    rounds: closedRounds.filter(round=>before ? round.date < date : round.date <= date)
+  });
+  const previous = history(true), current = history(false);
+  const items = [];
+  for (const player of state.players.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'))) {
+    const earned = new Set(playerAchievements(player.id,previous).filter(badge=>badge.unlocked).map(badge=>badge.key));
+    for (const badge of playerAchievements(player.id,current)) {
+      if (badge.unlocked && !earned.has(badge.key)) items.push({player,badge});
+    }
+  }
+  return {date,items};
+}
+function renderHomeAchievements() {
+  const {date,items} = recentAchievements();
+  $('#homeAchievementsDate').textContent = date ? homeDate(date,{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+  $('#homeAchievements').innerHTML = items.length ? `<div class="home-achievements-grid">${items.map(({player,badge})=>`<article class="home-achievement"><div class="home-achievement-player">${playerAvatar(player)}<strong>${escapeHtml(player.name)}</strong></div><div class="home-achievement-title"><span aria-hidden="true">${badge.icon}</span><h4>${escapeHtml(badge.name)}</h4></div><p>${escapeHtml(badge.detail)}</p>${badge.extra?`<p class="small">${escapeHtml(badge.extra)}</p>`:''}</article>`).join('')}</div>` : `<p class="results-empty">${date?'Nenhuma nova conquista foi desbloqueada no último dia de jogo.':'As conquistas recentes vão aparecer após o primeiro jogo encerrado.'}</p>`;
+}
+
 function renderHome() {
   const month = currentMonthValue();
   const monthName = homeDate(`${month}-01`, { month: "long" });
@@ -429,6 +456,7 @@ function renderHome() {
   renderHomeMonth(monthName, monthlyMatches);
   renderHomeLineup();
   renderHomeResults();
+  renderHomeAchievements();
 }
 
 function currentMonthValue() {
@@ -529,7 +557,7 @@ function renderStatsChart(player, matches) {
 }
 
 // One result per closed matchday, retaining the saved roster and goalkeeper role.
-function playerDayEntries(playerId, matches = state.matches) {
+function playerDayEntries(playerId, matches = state.matches, history = state) {
   const entries = [];
   for (const match of matches.filter(item => !item.roundId)) {
     const key = (match.teamA || []).includes(playerId) ? 'A' : (match.teamB || []).includes(playerId) ? 'B' : null;
@@ -538,10 +566,10 @@ function playerDayEntries(playerId, matches = state.matches) {
     entries.push({date:match.date, ids:key === 'A' ? match.teamA : match.teamB, keeper:(key === 'A' ? match.goalkeeperAId : match.goalkeeperBId) === playerId, conceded, result:own === conceded ? 'draw' : own > conceded ? 'win' : 'loss', goals:Number(match.contributions?.[playerId]?.goals)||0, assists:Number(match.contributions?.[playerId]?.assists)||0, mvp:match.mvpPlayerId === playerId, bagre:match.bolaMurchaPlayerId === playerId});
   }
   const included = new Set(matches.map(match=>match.roundId).filter(Boolean));
-  for (const round of (state.rounds || []).filter(item=>item.closed && included.has(item.id))) {
+  for (const round of (history.rounds || []).filter(item=>item.closed && included.has(item.id))) {
     const key = ['A','B','C'].find(team=>(round.teams[team] || []).includes(playerId));
     if (!key) continue;
-    const conceded = roundMatches(round).filter(match=>match.teamAKey === key || match.teamBKey === key).reduce((sum,match)=>sum + Number(match.teamAKey === key ? match.scoreB : match.scoreA),0);
+    const conceded = matches.filter(match=>match.roundId === round.id).filter(match=>match.teamAKey === key || match.teamBKey === key).reduce((sum,match)=>sum + Number(match.teamAKey === key ? match.scoreB : match.scoreA),0);
     entries.push({date:round.date, ids:round.teams[key], keeper:round.keepers[key] === playerId, conceded, result:round.championTeam === key ? 'win' : 'loss', goals:Number(round.contributions?.[playerId]?.goals)||0, assists:Number(round.contributions?.[playerId]?.assists)||0, mvp:round.mvpPlayerId === playerId, bagre:round.bolaMurchaPlayerId === playerId});
   }
   return entries.sort((a,b)=>a.date.localeCompare(b.date));
@@ -552,10 +580,10 @@ function keeperDayTotals(entries) {
   return [...days].map(([date,conceded])=>({date,conceded}));
 }
 // A closed three-team round contributes one result per rival, using the day champion.
-function playerRivalries(playerId) {
+function playerRivalries(playerId, history = state) {
   const rivals = new Map();
-  const results = state.matches.filter(match=>!match.roundId);
-  for (const round of state.rounds || []) {
+  const results = history.matches.filter(match=>!match.roundId);
+  for (const round of history.rounds || []) {
     if (!round.closed || !['A','B','C'].includes(round.championTeam)) continue;
     for (const key of ['A','B','C'].filter(key=>key!==round.championTeam)) {
       results.push({date:round.date,teamA:round.teams[round.championTeam] || [],teamB:round.teams[key] || [],scoreA:1,scoreB:0});
@@ -565,7 +593,7 @@ function playerRivalries(playerId) {
     (a.match.date || '').localeCompare(b.match.date || '') ||
     (a.match.scheduleIndex ?? -a.index) - (b.match.scheduleIndex ?? -b.index));
   for (const {match} of chronological) {
-    if (match.roundId && !(state.rounds || []).some(round => round.id === match.roundId && round.closed)) continue;
+    if (match.roundId && !(history.rounds || []).some(round => round.id === match.roundId && round.closed)) continue;
     if (match.scoreA == null || match.scoreB == null || match.scoreA === '' || match.scoreB === '') continue;
     const scoreA = Number(match.scoreA), scoreB = Number(match.scoreB);
     if (!Number.isFinite(scoreA) || !Number.isFinite(scoreB)) continue;
@@ -590,11 +618,11 @@ function playerRivalries(playerId) {
   }
   return [...rivals.values()].sort((a,b) => b.wins-a.wins || (a.losses-b.losses) || a.id.localeCompare(b.id));
 }
-function playerAchievements(playerId) {
-  const entries = playerDayEntries(playerId);
+function playerAchievements(playerId, history = state) {
+  const entries = playerDayEntries(playerId, history.matches, history);
   const count = predicate => entries.filter(predicate).length;
   // MVP e Bagre contam mesmo para quem foi escolhido sem estar na escalação.
-  const awards = field => state.matches.filter(match => !match.roundId && match[field] === playerId).length + (state.rounds || []).filter(round => round.closed && round[field] === playerId).length;
+  const awards = field => history.matches.filter(match => !match.roundId && match[field] === playerId).length + (history.rounds || []).filter(round => round.closed && round[field] === playerId).length;
   const total = (field,keeper) => entries.filter(entry=>entry.keeper === keeper).reduce((sum,entry)=>sum+entry[field],0);
   const badges = [];
   const addSeries = (key,icon,names,goals,value,unit) => goals.forEach((goal,index)=>badges.push({key:`${key}-${goal}`,icon,name:names[index],goal,value,unlocked:value>=goal,detail:`${Math.min(value,goal)}/${goal} ${unit}`,progress:Math.min(100,value/goal*100)}));
@@ -627,7 +655,7 @@ function playerAchievements(playerId) {
     const person = id => state.players.find(player=>player.id===id)?.name || 'Jogador removido';
     badges.push({key,icon,name,unlocked:winners.length>0,progress:Math.min(100,value/goal*100),detail:`${Math.min(value,goal)}/${goal} ${result==='win'?'vitórias':'derrotas'} com a mesma pessoa`,extra:winners.length ? winners.map(partner=>`${person(partner.id)} · ${partner[result].size}`).join(' / ') : sorted.length ? `Parceria mais próxima: ${person(sorted[0].id)}` : 'Jogue no mesmo time para começar'});
   }
-  const rivals = playerRivalries(playerId);
+  const rivals = playerRivalries(playerId, history);
   const record = rival => `${state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido'}: ${rival.wins}V · ${rival.draws}E · ${rival.losses}D`;
   for (const [index,goal] of [10,20,30].entries()) {
     const progress = rival => Math.min(100, rival.wins/goal*100, Math.max(0,rival.wins-rival.losses)/5*100);

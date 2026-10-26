@@ -3146,3 +3146,15 @@ input[type="file"]::file-selector-button { border-radius: 7px; }
 @media (max-width: 600px) {
   .player-form > label:has(#playerGoalkeeperRating) { grid-column: 1 / -1; }
 }
+
+/* Latest matchday achievements */
+.home-achievements { margin: 36px 0; padding-top: 22px; border-top: 1px solid var(--line); }
+.home-achievements-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-top: 18px; }
+.home-achievement { padding: 20px; border: 1px solid var(--line); border-radius: var(--r-box); background: var(--surface); min-width: 0; }
+.home-achievement-player { display: flex; align-items: center; gap: 10px; }
+.home-achievement-title { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+.home-achievement-title > span { font-size: 1.5rem; }
+.home-achievement-title h4 { margin: 0; color: var(--gold); }
+.home-achievement p { color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+@media (max-width: 950px) { .home-achievements-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 600px) { .home-achievements-grid { grid-template-columns: 1fr; } }

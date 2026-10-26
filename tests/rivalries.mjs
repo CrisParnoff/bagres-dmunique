@@ -63,3 +63,29 @@ assert.equal(run(`playerRivalries('p').length`),0,'reopening removes the whole d
 run(`state.rounds[0].closed=true; state.rounds[0].championTeam='B';`);
 assert.equal(run(`playerRivalries('p').find(r=>r.id==='r').losses`),1,'correcting champion updates rivalries');
 console.log('Streak and revenge tests passed');
+
+// Home celebrates only badges newly unlocked on the latest completed matchday.
+run(`state=defaultState();state.players=[{id:'p',name:'Gabriel',stats:emptyStats()},{id:'r',name:'Rival',stats:emptyStats()},{id:'guest',name:'Convidado',stats:emptyStats()}];state.rounds=[];
+state.matches=Array.from({length:5},(_,i)=>({id:'m'+i,date:'2026-10-'+String(i+1).padStart(2,'0'),teamA:['p'],teamB:['r'],scoreA:3,scoreB:1,contributions:{p:{goals:2,assists:0}},mvpPlayerId:i===4?'guest':null})).reverse();`);
+assert.equal(run('recentAchievements().date'),'2026-10-05');
+assert.equal(run(`recentAchievements().items.filter(i=>i.player.id==='p' && i.badge.key==='line-goals-10').length`),1);
+assert.equal(run(`recentAchievements().items.some(i=>i.badge.key==='line-goals-1')`),false,'old first-goal badge is not repeated');
+assert.equal(run(`recentAchievements().items.some(i=>i.player.id==='guest' && i.badge.key==='mvp-1')`),true,'awards outside lineup still count');
+assert.equal(run(`recentAchievements().items.filter(i=>i.badge.key==='presence-5').length`),2);
+run(`state.rounds=[{id:'newday',date:'2026-10-06',closed:false,teams:{A:['p'],B:['r'],C:[]},keepers:{A:'p'},championTeam:'A',contributions:{p:{goals:0,assists:0}}}];state.matches.unshift({id:'part',roundId:'newday',date:'2026-10-06',teamA:['p'],teamB:['r'],teamAKey:'A',teamBKey:'B',scoreA:3,scoreB:1});`);
+assert.equal(run('recentAchievements().date'),'2026-10-05','draft round does not replace latest completed date');
+run(`state.rounds[0].closed=true;`);
+assert.equal(run('recentAchievements().date'),'2026-10-06');
+assert.equal(run(`recentAchievements().items.filter(i=>i.badge.key.startsWith('keeper-conceded-')).length`),5,'goalkeeper milestones count once per day');
+assert.equal(run(`recentAchievements().items.some(i=>i.badge.key==='line-goals-10')`),false,'previous day milestone is not repeated');
+run('renderHomeAchievements();');
+assert.match(nodes.get('#homeAchievements').innerHTML,/Gabriel/);
+assert.equal(nodes.get('#homeAchievementsDate').textContent,'06/10/2026');
+run(`state.rounds=[];state.matches=state.matches.filter(m=>!m.roundId);state.matches[0].contributions.p.goals=0;`);
+assert.equal(run(`recentAchievements().items.some(i=>i.badge.key==='line-goals-10')`),false,'corrected result removes false milestone');
+run(`state.matches.unshift({id:'quiet',date:'2026-10-07',teamA:['p'],teamB:['r'],scoreA:0,scoreB:0,contributions:{}});renderHomeAchievements();`);
+assert.match(nodes.get('#homeAchievements').innerHTML,/Nenhuma nova conquista/);
+run('state.matches=[];state.rounds=[];renderHomeAchievements();');
+assert.equal(run('recentAchievements().items.length'),0);
+assert.match(nodes.get('#homeAchievements').innerHTML,/primeiro jogo encerrado/);
+console.log('Recent home achievements passed: thresholds, no duplicates, outside-lineup awards, open/closed rounds, keeper milestones, corrections and empty states.');
