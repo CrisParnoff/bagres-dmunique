@@ -662,7 +662,7 @@ function playerAchievements(playerId, history = state) {
     const progress = rival => Math.min(100, rival.wins/goal*100, Math.max(0,rival.wins-rival.losses)/5*100);
     const qualified = rivals.filter(rival=>rival.wins>=goal && rival.wins-rival.losses>=5);
     const closest = [...rivals].sort((a,b)=>progress(b)-progress(a) || b.wins-a.wins)[0];
-    const people = rivals.filter(rival=>rival.wins === rivals[0]?.wins).sort((a,b)=>progress(b)-progress(a) || b.wins-a.wins || a.id.localeCompare(b.id)).map(rival=>({id:rival.id,name:state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido',detail:`${rival.wins}V · ${rival.draws}E · ${rival.losses}D · vantagem ${rival.wins-rival.losses>=0?'+':''}${rival.wins-rival.losses}`,progress:progress(rival),unlocked:rival.wins>=goal && rival.wins-rival.losses>=5}));
+    const people = rivals.filter(rival=>rival.wins>0 && rival.wins === rivals[0]?.wins).sort((a,b)=>progress(b)-progress(a) || b.wins-a.wins || a.id.localeCompare(b.id)).map(rival=>({id:rival.id,name:state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido',detail:`${rival.wins}V · ${rival.draws}E · ${rival.losses}D · vantagem ${rival.wins-rival.losses>=0?'+':''}${rival.wins-rival.losses}`,progress:progress(rival),unlocked:rival.wins>=goal && rival.wins-rival.losses>=5}));
     badges.push({key:`rivalry-${goal}`,people,icon:['🦆','🏡','📒'][index],name:['Meu Patinho','Freguês da Casa','Cliente Fidelidade'][index],unlocked:qualified.length>0,progress:closest?progress(closest):0,detail:`Vença o mesmo adversário ${goal} vezes, com pelo menos 5 vitórias de vantagem no confronto direto.`,extra:qualified.length?qualified.map(record).join(' / '):closest?`Mais próximo: ${record(closest)}`:'Jogue contra outros jogadores para começar'});
   }
   for (const [key,icon,name,detail,value,goal] of [
@@ -671,15 +671,17 @@ function playerAchievements(playerId, history = state) {
   ]) {
     const qualified = rivals.filter(rival=>value(rival)>=goal);
     const best = Math.max(0,...rivals.map(value));
-    const people = rivals.filter(rival=>value(rival) === best).sort((a,b)=>value(b)-value(a) || b.wins-a.wins).map(rival=>({id:rival.id,name:state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido',detail:key==='rivalry-streak'?`${rival.wins}V · ${rival.draws}E · ${rival.losses}D · melhor sequência: ${rival.bestStreak}/3 vitórias`:rival.revenge?'Deu o troco após 3 derrotas seguidas':`Sequência atual de derrotas: ${rival.lossStreak}/3 antes da revanche`,progress:Math.min(100,value(rival)/goal*100),unlocked:value(rival)>=goal}));
-    badges.push({key,icon,name,detail,people,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:qualified.length?qualified.map(record).join(' / '):'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
+    badges.push({key,icon,name,detail,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
   }
   return badges;
 }
 function achievementPeople(badge) {
-  if (!badge.people?.length) return '';
-  const rows = people => people.map(person=>`<li><div><strong>${escapeHtml(person.name)}</strong>${person.unlocked?'<span class="achievement-person-earned">✓ Conquistada</span>':''}</div><span>${escapeHtml(person.detail)}</span><progress max="100" value="${person.progress}" aria-label="${escapeHtml(badge.name)} com ${escapeHtml(person.name)}"></progress></li>`).join('');
-  return `<div class="achievement-people"><p class="achievement-extra">${badge.people.length>1?'Empatados na liderança':'Na liderança'}</p><ul>${rows(badge.people)}</ul></div>`;
+  const people = (badge.people || []).slice(0,4);
+  if (!people.length) return '';
+  const names = people.map(person=>escapeHtml(person.name)).join(', ');
+  const label = badge.unlocked ? 'Conquistada com' : people.length>1 ? 'Mais próximos' : 'Mais próximo';
+  const record = badge.key.startsWith('rivalry-') ? `<span class="achievement-nearest-record">${escapeHtml(people[0].detail.split('V')[0]+' vitórias contra cada um')}</span>` : '';
+  return `<p class="achievement-extra">${label}: ${names}${record}</p>`;
 }
 function renderAchievements(player) {
   const badges = playerAchievements(player.id);

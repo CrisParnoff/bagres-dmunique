@@ -95,7 +95,7 @@ run(`state=defaultState();state.rounds=[];state.players=['p','mate1','mate2','r1
 assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-10').people.length`),4,'all tied opponents appear');
 assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people.length`),2,'all partners with progress appear');
 run(`renderAchievements(state.players[0]);`);
-assert.match(nodes.get('#playerAchievements').innerHTML,/Empatados na liderança/);
+assert.match(nodes.get('#playerAchievements').innerHTML,/Mais próximos:/);
 assert.match(nodes.get('#playerAchievements').innerHTML,/&lt;Outro rival&gt;/,'player names remain escaped');
 assert.ok(!nodes.get('#playerAchievements').innerHTML.includes('<Outro rival>'));
 run(`state.matches=Array.from({length:10},(_,i)=>({...state.matches[0],id:'win'+i,date:'2026-10-'+String(i+1).padStart(2,'0')}));`);
@@ -110,3 +110,11 @@ assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-10').people.s
 assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people.length`),1);
 assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people[0].id`),'mate1');
 console.log('Only leaders shown: every tie included, lower totals omitted.');
+
+// Compact nearest-name summaries, capped at four; sequence cards have no people list.
+run(`const previewBadge={key:'duo-win',unlocked:false,people:Array.from({length:6},(_,i)=>({id:'x'+i,name:'Pessoa'+i,detail:'2/5 vitórias juntos'}))};`);
+assert.match(run('achievementPeople(previewBadge)'),/Pessoa3/);
+assert.doesNotMatch(run('achievementPeople(previewBadge)'),/Pessoa4|Pessoa5|<progress|<li/);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-revenge').people`),undefined);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-streak').people`),undefined);
+console.log('Compact summaries passed: maximum four names, no repeated bars or sequence lists.');
