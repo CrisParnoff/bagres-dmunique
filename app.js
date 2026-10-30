@@ -671,7 +671,7 @@ function playerAchievements(playerId, history = state) {
   ]) {
     const qualified = rivals.filter(rival=>value(rival)>=goal);
     const best = Math.max(0,...rivals.map(value));
-    badges.push({key,icon,name,detail,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
+    badges.push({key,icon,name,detail,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:qualified.length ? `Contra: ${qualified.slice(0,4).map(rival=>state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido').join(', ')}` : 'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
   }
   return badges;
 }

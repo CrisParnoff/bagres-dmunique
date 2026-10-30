@@ -118,3 +118,15 @@ assert.doesNotMatch(run('achievementPeople(previewBadge)'),/Pessoa4|Pessoa5|<pro
 assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-revenge').people`),undefined);
 assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-streak').people`),undefined);
 console.log('Compact summaries passed: maximum four names, no repeated bars or sequence lists.');
+
+// An earned streak names its rival on the home card, while locked cards stay compact.
+run(`state=defaultState();state.players=[{id:'p',name:'Bernardo',stats:emptyStats()},{id:'r',name:'Kauê',stats:emptyStats()}];state.rounds=[];sequence(['W','W','W']);`);
+assert.equal(run(`special('streak').extra`),'Contra: Kauê');
+run('renderHomeAchievements();');
+assert.match(nodes.get('#homeAchievements').innerHTML,/Pedra no Sapato/);
+assert.match(nodes.get('#homeAchievements').innerHTML,/Contra: Kauê/);
+run(`sequence(['L','L','L','W']);`);
+assert.equal(run(`special('revenge').extra`),'Contra: Kauê');
+run(`sequence(['W','W']);`);
+assert.doesNotMatch(run(`special('streak').extra`),/Kauê/);
+console.log('Earned sequence achievements name the rival; locked cards remain compact.');
