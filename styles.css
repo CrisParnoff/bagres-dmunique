@@ -3158,3 +3158,12 @@ input[type="file"]::file-selector-button { border-radius: 7px; }
 .home-achievement p { color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
 @media (max-width: 950px) { .home-achievements-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 600px) { .home-achievements-grid { grid-template-columns: 1fr; } }
+
+.achievement-people { margin-top: 14px; }
+.achievement-people ul { list-style: none; padding: 0; margin: 0; }
+.achievement-people li { padding: 10px 0; border-top: 1px solid var(--line); }
+.achievement-people li > div { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.achievement-people strong { font-size: .8rem; overflow-wrap: anywhere; }
+.achievement-people li > span { display: block; margin-top: 4px; font-size: .75rem; color: var(--muted); line-height: 1.5; }
+.achievement-person-earned { color: var(--gold); font-size: .7rem; }
+.achievement-people li progress { margin-top: 8px; height: 3px; }

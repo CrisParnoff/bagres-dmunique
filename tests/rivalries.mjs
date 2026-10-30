@@ -89,3 +89,24 @@ run('state.matches=[];state.rounds=[];renderHomeAchievements();');
 assert.equal(run('recentAchievements().items.length'),0);
 assert.match(nodes.get('#homeAchievements').innerHTML,/primeiro jogo encerrado/);
 console.log('Recent home achievements passed: thresholds, no duplicates, outside-lineup awards, open/closed rounds, keeper milestones, corrections and empty states.');
+
+// Equal-progress opponents and partners all stay visible, including after unlock.
+run(`state=defaultState();state.rounds=[];state.players=['p','mate1','mate2','r1','r2','r3','r4'].map(id=>({id,name:id==='r2'?'<Outro rival>':id,stats:emptyStats()}));state.matches=Array.from({length:2},(_,i)=>({id:'many'+i,date:'2026-10-0'+(i+1),teamA:['p','mate1','mate2'],teamB:['r1','r2','r3','r4'],scoreA:2,scoreB:1,contributions:{}}));`);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-10').people.length`),4,'all tied opponents appear');
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people.length`),2,'all partners with progress appear');
+run(`renderAchievements(state.players[0]);`);
+assert.match(nodes.get('#playerAchievements').innerHTML,/Empatados na liderança/);
+assert.match(nodes.get('#playerAchievements').innerHTML,/&lt;Outro rival&gt;/,'player names remain escaped');
+assert.ok(!nodes.get('#playerAchievements').innerHTML.includes('<Outro rival>'));
+run(`state.matches=Array.from({length:10},(_,i)=>({...state.matches[0],id:'win'+i,date:'2026-10-'+String(i+1).padStart(2,'0')}));`);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-10').people.filter(p=>p.unlocked).length`),4,'every eligible opponent is marked unlocked');
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people.filter(p=>p.unlocked).length`),2);
+console.log('All opponent/partner progress passed: ties, escaping and multiple unlocked people.');
+
+// Only the leaders remain; a lower total must never enter the displayed list.
+run(`state.matches[0].teamB=state.matches[0].teamB.filter(id=>id!=='r4');state.matches[0].teamA=state.matches[0].teamA.filter(id=>id!=='mate2');`);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-10').people.length`),3);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='rivalry-10').people.some(p=>p.id==='r4')`),false);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people.length`),1);
+assert.equal(run(`playerAchievements('p').find(b=>b.key==='duo-win').people[0].id`),'mate1');
+console.log('Only leaders shown: every tie included, lower totals omitted.');

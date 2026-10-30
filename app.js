@@ -653,7 +653,8 @@ function playerAchievements(playerId, history = state) {
     const winners = sorted.filter(partner=>partner[result].size>=goal);
     const value = sorted[0]?.[result].size || 0;
     const person = id => state.players.find(player=>player.id===id)?.name || 'Jogador removido';
-    badges.push({key,icon,name,unlocked:winners.length>0,progress:Math.min(100,value/goal*100),detail:`${Math.min(value,goal)}/${goal} ${result==='win'?'vitórias':'derrotas'} com a mesma pessoa`,extra:winners.length ? winners.map(partner=>`${person(partner.id)} · ${partner[result].size}`).join(' / ') : sorted.length ? `Parceria mais próxima: ${person(sorted[0].id)}` : 'Jogue no mesmo time para começar'});
+    const people = sorted.filter(partner=>partner[result].size>0 && partner[result].size===value).map(partner=>({id:partner.id,name:person(partner.id),detail:`${partner[result].size}/${goal} ${result==='win'?'vitórias':'derrotas'} juntos`,progress:Math.min(100,partner[result].size/goal*100),unlocked:partner[result].size>=goal}));
+    badges.push({key,icon,name,people,unlocked:winners.length>0,progress:Math.min(100,value/goal*100),detail:`${Math.min(value,goal)}/${goal} ${result==='win'?'vitórias':'derrotas'} com a mesma pessoa`,extra:winners.length ? winners.map(partner=>`${person(partner.id)} · ${partner[result].size}`).join(' / ') : sorted.length ? `Parceria mais próxima: ${person(sorted[0].id)}` : 'Jogue no mesmo time para começar'});
   }
   const rivals = playerRivalries(playerId, history);
   const record = rival => `${state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido'}: ${rival.wins}V · ${rival.draws}E · ${rival.losses}D`;
@@ -661,7 +662,8 @@ function playerAchievements(playerId, history = state) {
     const progress = rival => Math.min(100, rival.wins/goal*100, Math.max(0,rival.wins-rival.losses)/5*100);
     const qualified = rivals.filter(rival=>rival.wins>=goal && rival.wins-rival.losses>=5);
     const closest = [...rivals].sort((a,b)=>progress(b)-progress(a) || b.wins-a.wins)[0];
-    badges.push({key:`rivalry-${goal}`,icon:['🦆','🏡','📒'][index],name:['Meu Patinho','Freguês da Casa','Cliente Fidelidade'][index],unlocked:qualified.length>0,progress:closest?progress(closest):0,detail:`Vença o mesmo adversário ${goal} vezes, com pelo menos 5 vitórias de vantagem no confronto direto.`,extra:qualified.length?qualified.map(record).join(' / '):closest?`Mais próximo: ${record(closest)}`:'Jogue contra outros jogadores para começar'});
+    const people = rivals.filter(rival=>rival.wins === rivals[0]?.wins).sort((a,b)=>progress(b)-progress(a) || b.wins-a.wins || a.id.localeCompare(b.id)).map(rival=>({id:rival.id,name:state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido',detail:`${rival.wins}V · ${rival.draws}E · ${rival.losses}D · vantagem ${rival.wins-rival.losses>=0?'+':''}${rival.wins-rival.losses}`,progress:progress(rival),unlocked:rival.wins>=goal && rival.wins-rival.losses>=5}));
+    badges.push({key:`rivalry-${goal}`,people,icon:['🦆','🏡','📒'][index],name:['Meu Patinho','Freguês da Casa','Cliente Fidelidade'][index],unlocked:qualified.length>0,progress:closest?progress(closest):0,detail:`Vença o mesmo adversário ${goal} vezes, com pelo menos 5 vitórias de vantagem no confronto direto.`,extra:qualified.length?qualified.map(record).join(' / '):closest?`Mais próximo: ${record(closest)}`:'Jogue contra outros jogadores para começar'});
   }
   for (const [key,icon,name,detail,value,goal] of [
     ['rivalry-streak','😤','Pedra no Sapato','Vença 3 confrontos seguidos contra o mesmo adversário. Empates e derrotas interrompem a sequência.',rival=>rival.bestStreak,3],
@@ -669,14 +671,20 @@ function playerAchievements(playerId, history = state) {
   ]) {
     const qualified = rivals.filter(rival=>value(rival)>=goal);
     const best = Math.max(0,...rivals.map(value));
-    badges.push({key,icon,name,detail,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:qualified.length?qualified.map(record).join(' / '):'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
+    const people = rivals.filter(rival=>value(rival) === best).sort((a,b)=>value(b)-value(a) || b.wins-a.wins).map(rival=>({id:rival.id,name:state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido',detail:key==='rivalry-streak'?`${rival.wins}V · ${rival.draws}E · ${rival.losses}D · melhor sequência: ${rival.bestStreak}/3 vitórias`:rival.revenge?'Deu o troco após 3 derrotas seguidas':`Sequência atual de derrotas: ${rival.lossStreak}/3 antes da revanche`,progress:Math.min(100,value(rival)/goal*100),unlocked:value(rival)>=goal}));
+    badges.push({key,icon,name,detail,people,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:qualified.length?qualified.map(record).join(' / '):'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
   }
   return badges;
+}
+function achievementPeople(badge) {
+  if (!badge.people?.length) return '';
+  const rows = people => people.map(person=>`<li><div><strong>${escapeHtml(person.name)}</strong>${person.unlocked?'<span class="achievement-person-earned">✓ Conquistada</span>':''}</div><span>${escapeHtml(person.detail)}</span><progress max="100" value="${person.progress}" aria-label="${escapeHtml(badge.name)} com ${escapeHtml(person.name)}"></progress></li>`).join('');
+  return `<div class="achievement-people"><p class="achievement-extra">${badge.people.length>1?'Empatados na liderança':'Na liderança'}</p><ul>${rows(badge.people)}</ul></div>`;
 }
 function renderAchievements(player) {
   const badges = playerAchievements(player.id);
   const earned = badges.filter(badge=>badge.unlocked);
-  const card = badge => `<article class="achievement ${badge.unlocked?'is-unlocked':''}"><span class="achievement-icon" aria-hidden="true">${badge.icon}</span><div><span class="achievement-status">${badge.unlocked?'✓ Conquistada':'Próxima meta'}</span><h4>${escapeHtml(badge.name)}</h4><p>${escapeHtml(badge.detail)}</p>${badge.extra?`<p class="achievement-extra">${escapeHtml(badge.extra)}</p>`:''}${badge.unlocked?'':`<progress max="100" value="${badge.progress}" aria-label="Progresso: ${escapeHtml(badge.name)}"></progress>`}</div></article>`;
+  const card = badge => `<article class="achievement ${badge.unlocked?'is-unlocked':''}"><span class="achievement-icon" aria-hidden="true">${badge.icon}</span><div><span class="achievement-status">${badge.unlocked?'✓ Conquistada':'Próxima meta'}</span><h4>${escapeHtml(badge.name)}</h4><p>${escapeHtml(badge.detail)}</p>${badge.people?.length?achievementPeople(badge):badge.extra?`<p class="achievement-extra">${escapeHtml(badge.extra)}</p>`:''}${badge.unlocked?'':`<progress max="100" value="${badge.progress}" aria-label="Progresso: ${escapeHtml(badge.name)}"></progress>`}</div></article>`;
   const family = badge => badge.key.replace(/-\d+$/, '');
   const nextFamilies = new Set();
   const next = badges.filter(badge=>{
