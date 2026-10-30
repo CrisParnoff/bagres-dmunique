@@ -319,3 +319,15 @@ console.log('Passed: independent keeper rating, full two/three-team coverage, de
 
 fixture(6); run('state.players.forEach((p,i)=>{p.rating=[3,3,5,4,2,1][i];p.fixedGoalkeeper=i<2;p.goalkeeperRating=i===0?1:5;});autoBalance();');
 assert.equal(run('Math.abs(teamTotal("A")-teamTotal("B"))'),2,'outfield allocation compensates different keeper strengths');
+
+// The monthly least-conceded highlight requires two appearances in goal that month.
+fixture(4);
+run(`state.players[0].name='Um jogo';state.players[1].name='Dois jogos';state.matches=[];state.rounds=[];
+for (const [keeper,date,conceded] of [['p0','2026-10-01',1],['p0','2026-09-01',1],['p1','2026-10-01',12],['p1','2026-10-08',19]]) state.matches.push({date,teamA:[keeper],teamB:['p3'],scoreA:20,scoreB:conceded,goalkeeperAId:keeper,contributions:{}});
+$('#highlightsMonth').value='2026-10';renderMonthlyHighlights();`);
+assert.doesNotMatch(nodes.get('#monthlyGoalkeepers').innerHTML,/Um jogo/);
+assert.match(nodes.get('#monthlyGoalkeepers').innerHTML,/Dois jogos/);
+assert.match(nodes.get('#monthlyGoalkeepers').innerHTML,/15,50/);
+run(`state.matches=state.matches.filter(m=>m.date!=='2026-10-08');renderMonthlyHighlights();`);
+assert.equal(nodes.get('#monthlyGoalkeepers').innerHTML,'');
+console.log('Passed: monthly goalkeeper highlight excludes one appearance, ignores other months and preserves averages.');
