@@ -503,7 +503,7 @@ function renderMonthlyHighlights() {
   renderList("mvps", "#monthlyMvps", "#monthlyMvpsEmpty");
   renderList("bolaMurchas", "#monthlyBolaMurchas", "#monthlyBolaMurchasEmpty");
   const keeperTotals = rankingStatsForMatches(state.matches.filter(match => match.date.startsWith(month)));
-  const keepers = state.players.filter(player => keeperTotals.get(player.id)?.goalkeeperGames >= 2)
+  const keepers = state.players.filter(player => keeperTotals.get(player.id)?.goalkeeperGames >= 3)
     .sort((a, b) => goalkeeperOrder(keeperTotals.get(a.id), keeperTotals.get(b.id)) || a.name.localeCompare(b.name, "pt-BR"));
   let keeperPosition = 0;
   const highlighted = keepers.map((player, index) => {
@@ -1096,14 +1096,14 @@ function renderRankingTable(bodySelector, emptySelector, sortBy, totals, editabl
   };
   const hasStats = [...totals.values()].some(stats => Object.values(stats).some(value => Number(value) > 0));
   $(emptySelector).classList.toggle("hidden", hasStats);
-  const sortedPlayers = state.players.filter(player => sortBy !== "goalkeeperAverage" || totals.get(player.id)?.goalkeeperGames > 0).sort((a, b) =>
+  const sortedPlayers = state.players.filter(player => sortBy !== "goalkeeperAverage" || totals.get(player.id)?.goalkeeperGames >= 3).sort((a, b) =>
     (sortBy === "goalkeeperAverage"
       ? goalkeeperOrder(totals.get(a.id), totals.get(b.id)) || totals.get(b.id).goalkeeperGames - totals.get(a.id).goalkeeperGames
       : tieBreakers[sortBy].reduce((difference, key) => difference || (totals.get(b.id)?.[key] || 0) - (totals.get(a.id)?.[key] || 0), 0))
       || a.name.localeCompare(b.name, "pt-BR"));
   if (sortBy === "goalkeeperAverage") {
     $(emptySelector).classList.toggle("hidden", sortedPlayers.length > 0);
-    $(emptySelector).textContent = "Nenhuma partida com goleiro fixo registrada neste período.";
+    $(emptySelector).textContent = "Nenhum goleiro com pelo menos 3 partidas completas no gol neste período.";
   } else $(emptySelector).textContent = "Nenhuma partida registrada neste período.";
   const metricLabel = { goals: "gols", assists: "assistências", wins: "vitórias", games: "partidas", mvps: "MVPs", bolaMurchas: "Bagres", goalkeeperAverage: "gols sofridos / jogo" }[sortBy];
   const table = $(bodySelector).closest?.("table");
