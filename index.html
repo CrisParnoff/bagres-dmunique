@@ -345,40 +345,11 @@
       <section id="ranking" class="view" aria-labelledby="ranking-title">
         <div class="section-intro">
           <h2 id="ranking-title">Ranking FC BAGRES</h2>
-          <p class="muted">Confira o desempenho mensal. O ranking anual fica disponível somente no modo admin.</p>
+          <p class="muted">Confira o desempenho acumulado de cada ano. Os destaques continuam mensais.</p>
         </div>
-        <div class="card ranking-card">
+        <div class="card ranking-card annual-ranking">
           <div class="ranking-section-heading">
-            <div><h3>Ranking mensal</h3></div>
-            <label class="ranking-filter">Mês e ano
-              <input id="monthlyRankingMonth" type="month" />
-            </label>
-          </div>
-          <label class="ranking-sort">Ordenar jogadores por
-            <select id="monthlyRankingSort">
-              <option value="goals">Gols</option>
-              <option value="assists">Assistências</option>
-              <option value="wins">Vitórias</option>
-              <option value="games">Partidas</option>
-              <option value="mvps">MVPs</option>
-              <option value="bolaMurchas">Bagres</option>
-              <option value="goalkeeperAverage">Goleiro menos vazado (menor média)</option>
-            </select>
-          </label>
-          <div id="monthlyRankingPodium" class="ranking-podium" aria-label="Três primeiros do ranking mensal"></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>#</th><th>Jogador</th><th>J</th><th>V</th><th>E</th><th>D</th><th>Gols</th><th>Ass.</th><th>MVP</th><th>Bagre</th><th>J no gol</th><th>GS</th><th>GS/J</th></tr></thead>
-              <tbody id="monthlyRankingBody"></tbody>
-            </table>
-          </div>
-          <p class="muted small ranking-legend">J: jogos · V: vitórias · E: empates · D: derrotas · Ass.: assistências · MVP e Bagre: escolhas recebidas · J no gol: partidas como goleiro fixo · GS: gols sofridos · GS/J: média de gols sofridos por partida no gol</p>
-          <div class="empty-state" id="monthlyRankingEmpty">Nenhuma partida registrada neste mês.</div>
-        </div>
-
-        <div class="card ranking-card annual-ranking admin-only">
-          <div class="ranking-section-heading">
-            <div><h3>Ranking anual <span class="admin-tag"><svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>Só admin</span></h3></div>
+            <div><h3>Ranking anual</h3></div>
             <label class="ranking-filter">Ano
               <select id="annualRankingYear"></select>
             </label>
@@ -397,14 +368,14 @@
           <div id="annualRankingPodium" class="ranking-podium" aria-label="Três primeiros do ranking anual"></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>#</th><th>Jogador</th><th>J</th><th>V</th><th>E</th><th>D</th><th>Gols</th><th>Ass.</th><th>MVP</th><th>Bagre</th><th>J no gol</th><th>GS</th><th>GS/J</th><th>Editar</th></tr></thead>
+              <thead><tr><th>#</th><th>Jogador</th><th>J</th><th>V</th><th>E</th><th>D</th><th>Gols</th><th>Ass.</th><th>MVP</th><th>Bagre</th><th>J no gol</th><th>GS</th><th>GS/J</th><th class="admin-only">Editar</th></tr></thead>
               <tbody id="annualRankingBody"></tbody>
             </table>
           </div>
           <p class="muted small ranking-legend">J: jogos · V: vitórias · E: empates · D: derrotas · Ass.: assistências · MVP e Bagre: escolhas recebidas · J no gol: partidas como goleiro fixo · GS: gols sofridos · GS/J: média de gols sofridos por partida no gol</p>
           <div class="empty-state" id="annualRankingEmpty">Nenhuma partida registrada neste ano.</div>
 
-          <form id="statsForm" class="card stats-form hidden">
+          <form id="statsForm" class="card stats-form admin-only hidden">
             <div class="section-heading"><h4 id="statsTitle">Editar estatísticas</h4><button type="button" class="mini-button" id="closeStats" aria-label="Fechar edição">×</button></div>
             <input type="hidden" id="statsPlayerId" />
             <div class="stats-fields">
@@ -415,7 +386,7 @@
               <label>Gols<input id="statGoals" type="number" inputmode="numeric" min="0" max="999" required /></label>
               <label>Assistências<input id="statAssists" type="number" inputmode="numeric" min="0" max="999" required /></label>
             </div>
-            <p class="muted small">As estatísticas manuais afetam apenas o ranking anual; o mensal considera partidas registradas.</p>
+            <p class="muted small">As estatísticas manuais são somadas às partidas registradas no ano selecionado.</p>
             <button class="button primary" type="submit">Salvar estatísticas</button>
           </form>
         </div>

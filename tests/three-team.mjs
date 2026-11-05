@@ -110,7 +110,7 @@ assert.ok(node('#roundStandingsFooter').innerHTML.includes('<th>Pontos</th>'));
 assert.ok(node('#roundStandingsFooter').innerHTML.includes('Vitória 3 · empate 1 · derrota 0'));
 assert.ok(!node('#roundStandingsFooter').innerHTML.includes('standings-champion'));
 assert.ok(!node('#roundPanel').innerHTML.includes('data-round-game="0" class="round-game"><input'));
-node('#monthlyRankingSort').value = 'goals'; node('#annualRankingSort').value = 'goals';
+node('#annualRankingSort').value = 'goals';
 run('adminMode=true; realRender(); adminMode=false; realRender();');
 // Close a tied day, reject missing tiebreak winner, and count only one title.
 run('adminMode=true; state.matches.forEach(m=>{m.scoreA=2;m.scoreB=2;});');
@@ -331,3 +331,12 @@ assert.match(nodes.get('#monthlyGoalkeepers').innerHTML,/15,50/);
 run(`state.matches=state.matches.filter(m=>m.date!=='2026-10-08');renderMonthlyHighlights();`);
 assert.equal(nodes.get('#monthlyGoalkeepers').innerHTML,'');
 console.log('Passed: monthly goalkeeper highlight excludes one appearance, ignores other months and preserves averages.');
+
+
+// The annual ranking is public, preserves annual adjustments, and only admins edit.
+run("\nstate=defaultState();\nstate.players=[{id:'p',name:'Gabriel',stats:emptyStats(),manualStatsByYear:{'2026':{goals:2}}},{id:'q',name:'Arthur',stats:emptyStats()}];\nstate.matches=[\n{date:'2026-10-01',teamA:['p'],teamB:['q'],scoreA:2,scoreB:1,contributions:{p:{goals:2,assists:0}}},\n{date:'2026-11-01',teamA:['p'],teamB:['q'],scoreA:3,scoreB:1,contributions:{p:{goals:3,assists:0}}},\n{date:'2025-11-01',teamA:['p'],teamB:['q'],scoreA:90,scoreB:1,contributions:{p:{goals:90,assists:0}}}\n];\n$('#annualRankingYear').value='2026';$('#annualRankingSort').value='goals';adminMode=false;\nrenderAnnualRanking();\nconst pub=$('#annualRankingBody').innerHTML;\nif(!pub.includes('<td>7</td>'))throw Error('annual public total omitted games or manual stats');\nif(pub.includes('data-edit-stats'))throw Error('public edit button leaked');\nadminMode=true;renderAnnualRanking();\nif(!$('#annualRankingBody').innerHTML.includes('data-edit-stats'))throw Error('admin editing unavailable');\nadminMode=false;$('#annualRankingYear').value='2025';renderAnnualRanking();\nif(!$('#annualRankingBody').innerHTML.includes('<td>90</td>'))throw Error('year selection failed');\n$('#highlightsMonth').value='2026-11';renderMonthlyHighlights();\nif(!$('#monthlyGoals').innerHTML.includes('<strong>3</strong>'))throw Error('highlights stopped using selected month');\n\n");
+backend.sample={rounds:[],matches:[],players:[{id:'p',name:'Gabriel',rating:5,goalkeeperRating:4,stats:{},manualStats:{goals:1},manualStatsByYear:{'2026':{goals:2}}}]};
+assert.equal(vm.runInContext('publicState(sample).players[0].manualStatsByYear["2026"].goals',backend),2);
+assert.equal(vm.runInContext('publicState(sample).players[0].rating',backend),undefined);
+assert.equal(vm.runInContext('publicState(sample).players[0].goalkeeperRating',backend),undefined);
+console.log('Passed: public annual ranking, year selection, manual totals, admin editing, monthly highlights and private ratings.');

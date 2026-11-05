@@ -164,7 +164,7 @@ function publicState(state) {
   return {
     ...state,
     rounds: (state.rounds || []).map(({id,date,closed,championTeam,teams,names,keepers,contributions,mvpPlayerId,bolaMurchaPlayerId}) => ({id,date,closed,championTeam,teams: Object.fromEntries(["A","B","C"].map(key => [key,teams[key]])), names: Object.fromEntries(["A","B","C"].map(key => [key,names[key]])), keepers: Object.fromEntries(["A","B","C"].map(key => [key,keepers[key]])), contributions,mvpPlayerId,bolaMurchaPlayerId})),
-    players: state.players.map(({ id, name, available, team, stats, photoKey, fixedGoalkeeper }) => ({ id, name, available, team, stats, photoKey, fixedGoalkeeper })),
+    players: state.players.map(({ id, name, available, team, stats, photoKey, fixedGoalkeeper, manualStats, manualStatsByYear }) => ({ id, name, available, team, stats, photoKey, fixedGoalkeeper, manualStats, manualStatsByYear })),
     matches: state.matches.map(({ roundId, scheduleIndex, teamAKey, teamBKey, id, date, teamAName, teamBName, scoreA, scoreB, teamA, teamB, contributions, mvpPlayerId, bolaMurchaPlayerId, goalkeeperAId, goalkeeperBId }) =>
       ({ roundId, scheduleIndex, teamAKey, teamBKey, id, date, teamAName, teamBName, scoreA, scoreB, teamA, teamB, contributions, mvpPlayerId, bolaMurchaPlayerId, goalkeeperAId, goalkeeperBId }))
   };

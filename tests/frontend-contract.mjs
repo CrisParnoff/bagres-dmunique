@@ -25,3 +25,11 @@ new Script(bundle,{filename:'public/app.js'});
 assert.ok(bundle.endsWith(ui),'The verified build must include the visual layer');
 assert.ok(!/fetch\s*\(|localStorage|sessionStorage/.test(ui),'Visual interactions must not persist or change application data');
 console.log('Passed: current DOM controls, seven screens, admin navigation, three-team/round/artwork/stats/membership features, icons, font and bundled visual layer.');
+
+
+assert.doesNotMatch(html,/monthlyRanking/, 'The ranking screen is annual only');
+assert.match(html,/class="card ranking-card annual-ranking"/);
+assert.doesNotMatch(html,/annual-ranking admin-only/);
+assert.match(html,/<th class="admin-only">Editar<\/th>/);
+assert.match(html,/id="statsForm" class="card stats-form admin-only hidden"/);
+assert.ok(ids.includes('highlightsMonth'),'Highlights retain their monthly filter');

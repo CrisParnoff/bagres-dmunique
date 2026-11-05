@@ -210,7 +210,6 @@ function render() {
   renderSquad();
   renderRoster();
   renderAnnualRanking();
-  renderMonthlyRanking();
   renderMonthlyHighlights();
   renderPlayerStats();
   renderMatches();
@@ -1124,8 +1123,6 @@ function renderRankingTable(bodySelector, emptySelector, sortBy, totals, editabl
 }
 
 function renderAnnualRanking() {
-  const body = $("#annualRankingBody");
-  if (!adminMode) { body.innerHTML = ""; $("#annualRankingPodium").innerHTML = ""; return; }
   const yearSelect = $("#annualRankingYear");
   const previousYear = yearSelect.value;
   const years = new Set([currentYearValue()]);
@@ -1141,15 +1138,7 @@ function renderAnnualRanking() {
     const manual = manualStatsForYear(player, year);
     ["games", "wins", "draws", "losses", "points", "goals", "assists", "gf", "ga"].forEach(key => { stats[key] += Number(manual[key]) || 0; });
   });
-  renderRankingTable("#annualRankingBody", "#annualRankingEmpty", $("#annualRankingSort").value, totals, true);
-}
-
-function renderMonthlyRanking() {
-  const monthInput = $("#monthlyRankingMonth");
-  if (!monthInput.value) monthInput.value = currentMonthValue();
-  const month = monthInput.value;
-  const matches = state.matches.filter(match => typeof match.date === "string" && match.date.startsWith(month));
-  renderRankingTable("#monthlyRankingBody", "#monthlyRankingEmpty", $("#monthlyRankingSort").value, rankingStatsForMatches(matches));
+  renderRankingTable("#annualRankingBody", "#annualRankingEmpty", $("#annualRankingSort").value, totals, adminMode);
 }
 
 function renderMatches() {
@@ -1752,9 +1741,6 @@ $("#importLocal").addEventListener("click", () => {
 });
 $("#annualRankingSort").addEventListener("change", renderAnnualRanking);
 $("#annualRankingYear").addEventListener("change", renderAnnualRanking);
-$("#monthlyRankingSort").addEventListener("change", renderMonthlyRanking);
-$("#monthlyRankingMonth").addEventListener("input", renderMonthlyRanking);
-$("#monthlyRankingMonth").addEventListener("change", renderMonthlyRanking);
 $("#playerStatsSelect").addEventListener("change", renderPlayerStats);
 $("#playerStatsYear").addEventListener("change", renderPlayerStats);
 $("#playerStatsPeriod").addEventListener("change", renderPlayerStats);

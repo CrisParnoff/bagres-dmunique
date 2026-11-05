@@ -80,7 +80,6 @@
 
   // Filtros e ordenação: os itens novos entram em sequência.
   const replayTargets = [
-    ["#monthlyRankingSort, #monthlyRankingMonth", el => el.closest(".ranking-card")],
     ["#annualRankingSort, #annualRankingYear", el => el.closest(".ranking-card")],
     ["#playerStatsSelect, #playerStatsYear, #playerStatsPeriod, #playerStatsMonth", () => qs("#stats")],
     ["#highlightsMonth", () => qs("#destaques .monthly-grid")]
