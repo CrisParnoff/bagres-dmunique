@@ -503,7 +503,7 @@ function renderMonthlyHighlights() {
   renderList("mvps", "#monthlyMvps", "#monthlyMvpsEmpty");
   renderList("bolaMurchas", "#monthlyBolaMurchas", "#monthlyBolaMurchasEmpty");
   const keeperTotals = rankingStatsForMatches(state.matches.filter(match => match.date.startsWith(month)));
-  const keepers = state.players.filter(player => keeperTotals.get(player.id)?.goalkeeperGames >= 3)
+  const keepers = state.players.filter(player => keeperTotals.get(player.id)?.goalkeeperGames >= 1)
     .sort((a, b) => goalkeeperOrder(keeperTotals.get(a.id), keeperTotals.get(b.id)) || a.name.localeCompare(b.name, "pt-BR"));
   let keeperPosition = 0;
   const highlighted = keepers.map((player, index) => {
