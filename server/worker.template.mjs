@@ -132,6 +132,12 @@ function validState(state) {
     } else if (round.championTeam != null) return false;
   }
   if (state.matches.some(match => match.roundId != null && !roundIds.has(match.roundId))) return false;
+  if (state.monthlyPayments != null) {
+    if (typeof state.monthlyPayments !== "object" || Array.isArray(state.monthlyPayments) || Object.keys(state.monthlyPayments).length > 240) return false;
+    for (const [month, payments] of Object.entries(state.monthlyPayments)) {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !payments || typeof payments !== "object" || Array.isArray(payments) || Object.keys(payments).length > 200 || !Object.entries(payments).every(([playerId, paid]) => id(playerId) && typeof paid === "boolean")) return false;
+    }
+  }
   if (state.monthlyMembers != null) {
     if (typeof state.monthlyMembers !== "object" || Array.isArray(state.monthlyMembers) || Object.keys(state.monthlyMembers).length > 240) return false;
     for (const [month,members] of Object.entries(state.monthlyMembers)) {

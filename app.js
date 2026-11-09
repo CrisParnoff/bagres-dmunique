@@ -18,6 +18,7 @@ const defaultState = () => ({
   matches: [],
   rounds: [],
   monthlyMembers: {},
+  monthlyPayments: {},
   teamCName: TEAM_DEFAULTS.C,
   teamAName: TEAM_DEFAULTS.A,
   teamBName: TEAM_DEFAULTS.B,
@@ -1583,6 +1584,7 @@ async function closeRound() {
 }
 
 let monthlySaving = false;
+let cashPaymentSaving = false;
 // ---------- Transparência: resumo do caixa ----------
 // Lê a planilha oficial pelo servidor (/api/transparency) e cruza os
 // pagamentos de mensalidade do mês com os mensalistas marcados no site.
@@ -1621,6 +1623,43 @@ function cashPaid(player, payments) {
   });
 }
 
+function cashPaymentPaid(player, month, payments) {
+  const manual = state.monthlyPayments?.[month]?.[player.id];
+  return typeof manual === "boolean" ? manual : cashPaid(player, payments);
+}
+function cashPaymentSection(month = currentMonthValue()) {
+  const monthName = homeDate(month+"-01", {month:"long",year:"numeric"});
+  const members = (state.monthlyMembers?.[month] || []).map(id=>state.players.find(player=>player.id===id)).filter(Boolean);
+  const payments = (cashLedger?.entries || []).filter(entry=>entry.date.startsWith(month) && entry.value>0 && plainText(entry.category).includes("mensal"));
+  const pending = members.filter(player=>!cashPaymentPaid(player,month,payments));
+  const shown = adminMode ? [...members].sort((a,b)=>Number(cashPaymentPaid(a,month,payments))-Number(cashPaymentPaid(b,month,payments)) || a.name.localeCompare(b.name,"pt-BR")) : pending;
+  const people = shown.map(player=>{
+    const paid = cashPaymentPaid(player,month,payments);
+    return `<li>${playerAvatar(player)}<span>${escapeHtml(player.name)}</span>${adminMode ? `<span class="cash-payment-status ${paid?"is-paid":""}">${paid?"Pago":"Pendente"}</span><button type="button" class="cash-payment-button" data-cash-payment="${escapeHtml(player.id)}" data-payment-month="${month}" data-payment-paid="${!paid}" ${cashPaymentSaving?"disabled":""} aria-label="Marcar ${escapeHtml(player.name)} como ${paid?"pendente":"pago"}">${paid?"Marcar pendente":"Marcar pago"}</button>` : ""}</li>`;
+  }).join("");
+  const body = !members.length ? '<p class="cash-empty">Marque os mensalistas deste mês mais abaixo para acompanhar os pagamentos.</p>' : shown.length ? `<ul class="confirmed-list cash-people ${adminMode?"cash-payment-controls":""}">${people}</ul>` : `<p class="cash-all-paid">Todos os ${members.length} mensalistas de ${monthName} já pagaram.</p>`;
+  return `<section class="cash-pending" aria-labelledby="cash-pending-title"><div class="cash-pending-head"><h3 id="cash-pending-title">${adminMode?"Controle de pagamentos":"Pagantes pendentes"}</h3>${members.length?`<span class="cash-count">${pending.length}</span>`:""}</div><p class="cash-sub">Mensalistas de ${monthName} · ${members.length-pending.length} de ${members.length} já pagaram</p>${body}${adminMode?'<p class="cash-sub">A marcação organiza os pagamentos do mês. O saldo e os lançamentos vêm da planilha.</p>':""}<p class="cash-payment-saving" role="status" aria-live="polite">${cashPaymentSaving?"Salvando pagamento…":""}</p></section>`;
+}
+function bindCashPaymentButtons() {
+  $$("[data-cash-payment]").forEach(button=>button.addEventListener("click",()=>setCashPayment(button.dataset.cashPayment,button.dataset.paymentPaid==="true",button.dataset.paymentMonth)));
+}
+async function setCashPayment(playerId, paid, month) {
+  if (!adminMode || cashPaymentSaving || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || typeof paid!=="boolean" || !state.players.some(player=>player.id===playerId) || !(state.monthlyMembers?.[month] || []).includes(playerId)) return false;
+  state.monthlyPayments ??= {};
+  const previous = state.monthlyPayments[month] ? {...state.monthlyPayments[month]} : undefined;
+  state.monthlyPayments[month] = {...previous,[playerId]:paid};
+  cashPaymentSaving = true;
+  renderCashInsights();
+  const rollback = () => { if(previous===undefined)delete state.monthlyPayments[month];else state.monthlyPayments[month]=previous; };
+  try {
+    if (!await persist()) { rollback(); showToast("O pagamento não foi salvo. Tente novamente."); return false; }
+    showToast(paid?"Pagamento marcado como pago":"Pagamento marcado como pendente");
+    return true;
+  } catch (_) {
+    rollback(); showToast("O pagamento não foi salvo. Tente novamente."); return false;
+  } finally { cashPaymentSaving=false; renderCashInsights(); }
+}
+
 function cashLedgerList(title, entries, empty) {
   return `<section class="cash-ledger" aria-label="${title}">
     <h3>${title}</h3>
@@ -1640,6 +1679,8 @@ function renderCashInsights() {
     target.innerHTML = cashError
       ? `<div class="cash-error"><p>${escapeHtml(cashError)} A planilha continua disponível logo abaixo.</p><button type="button" class="button ghost" id="cashRetry">Tentar de novo</button></div>`
       : '<div class="cash-skeleton" aria-label="Carregando o resumo do caixa"><span></span><span></span><span></span><span></span></div>';
+    target.innerHTML += cashPaymentSection();
+    bindCashPaymentButtons();
     $("#cashRetry")?.addEventListener("click", () => loadCashLedger(true));
     return;
   }
@@ -1649,15 +1690,8 @@ function renderCashInsights() {
   const inflow = monthEntries.filter(entry => entry.value > 0).reduce((sum, entry) => sum + entry.value, 0);
   const outflow = monthEntries.filter(entry => entry.value < 0).reduce((sum, entry) => sum - entry.value, 0);
   const ordered = cashLedger.entries.map((entry, index) => ({ ...entry, index })).sort((a, b) => b.date.localeCompare(a.date) || b.index - a.index);
-  const members = (state.monthlyMembers?.[month] || []).map(id => state.players.find(player => player.id === id)).filter(Boolean);
-  const payments = monthEntries.filter(entry => entry.value > 0 && plainText(entry.category).includes("mensal"));
-  const pending = members.filter(player => !cashPaid(player, payments));
   const balance = Number(cashLedger.balance) || 0;
   const readAt = cashLedger.fetchedAt ? new Date(cashLedger.fetchedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
-  let pendingBody;
-  if (!members.length) pendingBody = `<p class="cash-empty">Os mensalistas de ${monthName} ainda não foram marcados. Quando a diretoria marcar (mais abaixo nesta aba), aparece aqui quem falta pagar.</p>`;
-  else if (!pending.length) pendingBody = `<p class="cash-all-paid">Todos os ${members.length} mensalistas de ${monthName} já pagaram.</p>`;
-  else pendingBody = `<ul class="confirmed-list cash-people">${pending.map(player => `<li>${playerAvatar(player)}<span>${escapeHtml(player.name)}</span></li>`).join("")}</ul>`;
   target.innerHTML = `<div class="cash-top">
       <section class="cash-balance" aria-labelledby="cash-balance-title">
         <h3 id="cash-balance-title">Saldo do clube</h3>
@@ -1665,19 +1699,13 @@ function renderCashInsights() {
         <p class="cash-balance-month">Em ${monthName}, entraram <b class="money-in">${brl(inflow)}</b> e saíram <b class="money-out">${brl(outflow)}</b>.</p>
         <p class="cash-source">Conforme a planilha oficial${readAt ? ` · lida às ${readAt}` : ""}</p>
       </section>
-      <section class="cash-pending" aria-labelledby="cash-pending-title">
-        <div class="cash-pending-head">
-          <h3 id="cash-pending-title">Pagantes pendentes</h3>
-          ${members.length ? `<span class="cash-count">${pending.length}</span>` : ""}
-        </div>
-        <p class="cash-sub">${members.length ? `Mensalistas de ${monthName} sem mensalidade na planilha · ${members.length - pending.length} de ${members.length} já pagaram` : `Mensalistas de ${monthName}`}</p>
-        ${pendingBody}
-      </section>
+      ${cashPaymentSection(month)}
     </div>
     <div class="cash-lists">
       ${cashLedgerList("Últimas entradas", ordered.filter(entry => entry.value > 0).slice(0, 5), "Nenhuma entrada lançada ainda.")}
       ${cashLedgerList("Últimas saídas", ordered.filter(entry => entry.value < 0).slice(0, 5), "Nenhuma saída lançada ainda.")}
     </div>`;
+  bindCashPaymentButtons();
 }
 
 function renderMonthlyMembers() {

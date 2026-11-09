@@ -3160,3 +3160,20 @@ input[type="file"]::file-selector-button { border-radius: 7px; }
 @media (max-width: 600px) { .home-achievements-grid { grid-template-columns: 1fr; } }
 
 .achievement-nearest-record { display: block; margin-top: 4px; }
+
+/* Admin: controle mensal de pagamentos. */
+.cash-people.cash-payment-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.cash-payment-controls li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; padding: 8px; border-radius: 12px; font-size: .9rem; }
+.cash-payment-controls .cash-payment-status { color: var(--gold); font-size: .75rem; font-weight: 700; }
+.cash-payment-controls .cash-payment-status.is-paid { color: #8ad9a5; }
+.cash-payment-button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.cash-payment-button:hover { border-color: var(--gold); }
+.cash-payment-button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.cash-payment-button:disabled { cursor: wait; opacity: .55; }
+.cash-payment-saving { margin: 8px 0 0; color: var(--muted); font-size: .85rem; }
+.cash-payment-saving:empty { display: none; }
+@media (max-width: 400px) {
+  .cash-payment-controls li { grid-template-columns: 32px minmax(0, 1fr) auto; }
+  .cash-payment-controls .cash-payment-status { grid-column: 2; }
+  .cash-payment-button { grid-column: 3; grid-row: 1 / 3; }
+}
