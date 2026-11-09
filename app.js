@@ -647,7 +647,7 @@ function playerAchievements(playerId, history = state) {
     if (!partners.has(id)) partners.set(id,{id,win:new Set(),loss:new Set()});
     partners.get(id)[entry.result].add(entry.date);
   }
-  for (const [key,result,goal,name,icon] of [['duo-win','win',5,'Dupla de respeito','🤝'],['duo-loss','loss',5,'Dupla que não dá certo','💀'],['duo-win10','win',10,'Parceria de milhões','🔥']]) {
+  for (const [key,result,goal,name,icon] of [['duo-win','win',5,'Dupla de respeito','🤝'],['duo-loss','loss',5,'Dupla que não dá certo','💀'],['duo-win10','win',10,'Dupla de Elite','🔥']]) {
     const sorted = [...partners.values()].sort((a,b)=>b[result].size-a[result].size || a.id.localeCompare(b.id));
     const winners = sorted.filter(partner=>partner[result].size>=goal);
     const value = sorted[0]?.[result].size || 0;
