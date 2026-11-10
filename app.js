@@ -1087,10 +1087,15 @@ function manualStatsForYear(player, year) {
 }
 
 function renderRankingTable(bodySelector, emptySelector, sortBy, totals, editable = false) {
+  const rankingValue = (player, key) => {
+    const stats = totals.get(player.id);
+    if (key === "winRate") return stats?.games > 0 ? (stats.wins || 0) / stats.games : 0;
+    return stats?.[key] || 0;
+  };
   const tieBreakers = {
     goals: ["goals", "assists", "wins", "games"],
     assists: ["assists", "goals", "wins", "games"],
-    wins: ["wins", "draws", "goals", "assists"],
+    wins: ["wins", "winRate", "draws", "goals", "assists"],
     games: ["games", "goals", "assists", "wins"],
     mvps: ["mvps", "goals", "assists", "wins"],
     bolaMurchas: ["bolaMurchas", "wins", "games", "goals"]
@@ -1100,7 +1105,7 @@ function renderRankingTable(bodySelector, emptySelector, sortBy, totals, editabl
   const sortedPlayers = state.players.filter(player => sortBy !== "goalkeeperAverage" || totals.get(player.id)?.goalkeeperGames >= 3).sort((a, b) =>
     (sortBy === "goalkeeperAverage"
       ? goalkeeperOrder(totals.get(a.id), totals.get(b.id)) || totals.get(b.id).goalkeeperGames - totals.get(a.id).goalkeeperGames
-      : tieBreakers[sortBy].reduce((difference, key) => difference || (totals.get(b.id)?.[key] || 0) - (totals.get(a.id)?.[key] || 0), 0))
+      : tieBreakers[sortBy].reduce((difference, key) => difference || rankingValue(b, key) - rankingValue(a, key), 0))
       || a.name.localeCompare(b.name, "pt-BR"));
   if (sortBy === "goalkeeperAverage") {
     $(emptySelector).classList.toggle("hidden", sortedPlayers.length > 0);

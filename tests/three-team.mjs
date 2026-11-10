@@ -336,3 +336,29 @@ console.log('Passed: public annual ranking, year selection, manual totals, admin
 await run("(async()=>{\nstate=defaultState();\nstate.players=[{id:\"p1\",name:\"Mota\",stats:emptyStats()},{id:\"p2\",name:\"Kauê\",stats:emptyStats()}];\nstate.monthlyMembers={\"2026-11\":[\"p1\",\"p2\"],\"2026-12\":[\"p1\"]};\ncurrentMonthValue=()=>\"2026-11\";\ncashLedger={balance:100,entries:[{date:\"2026-11-02\",description:\"Mota\",category:\"Mensalidade\",value:100}]};\nconst check=(ok,message)=>{if(!ok)throw Error(message);};\nadminMode=false;\ncheck(cashPaymentPaid(state.players[0],\"2026-11\",cashLedger.entries),\"spreadsheet recognition\");\ncheck(!cashPaymentSection().includes(\"data-cash-payment\"),\"public buttons hidden\");\ncheck(!await setCashPayment(\"p2\",true,\"2026-11\"),\"public mutation denied\");\nadminMode=true;\ncheck(cashPaymentSection().includes('data-cash-payment=\"p1\"'),\"admin buttons\");\npersist=async()=>true;showToast=()=>{};\ncheck(await setCashPayment(\"p2\",true,\"2026-11\"),\"save paid\");\ncheck(state.monthlyPayments[\"2026-11\"].p2===true,\"paid flag\");\ncheck(await setCashPayment(\"p1\",false,\"2026-11\"),\"mark spreadsheet payer pending\");\ncheck(!cashPaymentPaid(state.players[0],\"2026-11\",cashLedger.entries),\"manual pending overrides spreadsheet\");\ncheck(!cashPaymentPaid(state.players[1],\"2026-12\",[]),\"month isolation\");\ncheck(!await setCashPayment(\"p2\",true,\"2026-12\"),\"nonmember denied\");\ncheck(!await setCashPayment(\"p1\",true,\"2026-13\"),\"bad month denied\");\nconst saved=JSON.stringify(state.monthlyPayments);\npersist=async()=>false;\ncheck(!await setCashPayment(\"p1\",true,\"2026-11\"),\"failed save result\");\ncheck(JSON.stringify(state.monthlyPayments)===saved,\"rollback preserves month\");\npersist=async()=>{throw Error(\"offline\");};\ncheck(!await setCashPayment(\"p1\",true,\"2026-12\"),\"throw result\");\ncheck(JSON.stringify(state.monthlyPayments)===saved,\"rollback new month\");\npersist=async()=>true;cashLedger=null;\nrenderCashInsights();\ncheck($(\"#cashInsights\").innerHTML.includes('data-cash-payment=\"p1\"'),\"controls without ledger\");\nlet finishSave;persist=()=>new Promise(resolve=>{finishSave=resolve;});\nconst saving=setCashPayment(\"p1\",true,\"2026-11\");\ncheck(cashPaymentSaving,\"saving guard\");\ncheck($(\"#cashInsights\").innerHTML.includes(\"disabled\"),\"saving buttons disabled\");\ncheck(!await setCashPayment(\"p2\",false,\"2026-11\"),\"duplicate save blocked\");\nfinishSave(true);await saving;\ncheck(!cashPaymentSaving,\"saving finished\");\nadminMode=false;\ncheck(cashPaymentSection().includes(\"Todos os 2\"),\"public all paid\");\ncheck(!cashPaymentSection().includes(\"Marcar pago\"),\"public controls absent after admin\");\n})()");
 vm.runInContext("\nconst paymentSample=initialState(); if(!validState(paymentSample))throw Error(\"legacy initial state\");\npaymentSample.monthlyPayments={\"2026-11\":{p1:true,p2:false}};if(!validState(paymentSample))throw Error(\"valid payments\");\nif(publicState(paymentSample).monthlyPayments[\"2026-11\"].p2!==false)throw Error(\"public payment status\");\nfor(const invalid of [[],{\"2026-13\":{p1:true}},{\"2026-11\":null},{\"2026-11\":[]},{\"2026-11\":{p1:\"paid\"}},{\"2026-11\":{\"bad id\":true}}]){\npaymentSample.monthlyPayments=invalid;if(validState(paymentSample))throw Error(\"invalid payment map accepted \"+JSON.stringify(invalid));\n}\n",backend);
 console.log("Passed: monthly payment controls, admin guard, spreadsheet overrides, validation, rollback and month isolation.");
+
+// Wins stay primary; fewer games decide tied wins, before draws or goals.
+run(`
+state=defaultState();
+state.players=[
+ {id:'volume',name:'Volume',manualStatsByYear:{'2026':{games:12,wins:5,draws:7,goals:99}}},
+ {id:'efficient',name:'Eficiente',manualStatsByYear:{'2026':{games:6,wins:5,draws:0,goals:1}}},
+ {id:'leader',name:'Lider',manualStatsByYear:{'2026':{games:20,wins:6}}},
+ {id:'empty',name:'Sem jogos',manualStatsByYear:{'2026':{games:0,wins:0}}}
+];
+currentYearValue=()=>'2026';
+$('#annualRankingYear').value='2026';$('#annualRankingSort').value='wins';
+adminMode=false;renderAnnualRanking();
+`);
+const winsOrder = selector => {
+  const html=run(`$('${selector}').innerHTML`);
+  assert.ok(html.indexOf('Lider') < html.indexOf('Eficiente'),'total wins must remain primary');
+  assert.ok(html.indexOf('Eficiente') < html.indexOf('Volume'),'win rate must precede draws and goals');
+};
+winsOrder('#annualRankingBody');winsOrder('#annualRankingPodium');
+assert.ok(!run("$('#annualRankingBody').innerHTML").includes('NaN'),'zero games handled');
+run(`state.players[1].manualStatsByYear['2026'].games=12;renderAnnualRanking();`);
+assert.ok(run("$('#annualRankingBody').innerHTML").indexOf('Volume') < run("$('#annualRankingBody').innerHTML").indexOf('Eficiente'),'existing fallbacks remain when rates match');
+run(`$('#annualRankingSort').value='goals';renderAnnualRanking();`);
+assert.ok(run("$('#annualRankingPodium').innerHTML").indexOf('Volume') < run("$('#annualRankingPodium').innerHTML").indexOf('Eficiente'),'other rankings unchanged');
+console.log('Passed: wins ranking primary metric, win-rate tie-break, podium, equal-rate fallback and zero games.');
