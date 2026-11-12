@@ -33,7 +33,8 @@ function drawTeamArtwork(ctx, data, images) {
     box(x,y,cardWidth,cardHeight,16,color.fill,color.line);
     text(`EQUIPE ${team.key}`,x+22,y+31,19,color.label,cardWidth-44);
     text(team.name.toUpperCase(),x+22,y+77,count===3?30:37,color.text,cardWidth-44);
-    team.players.forEach((player,i)=>{
+    const orderedPlayers = [...team.players].sort((a,b)=>Number(!!b.fixedGoalkeeper)-Number(!!a.fixedGoalkeeper));
+    orderedPlayers.forEach((player,i)=>{
       const rowY=y+118+i*rowHeight, avatarSize=Math.min(count===3?66:76,rowHeight-16), avatarX=x+18, avatarY=rowY+(rowHeight-avatarSize)/2;
       box(x+10,rowY+3,cardWidth-20,rowHeight-7,12,index===1?'#ffffff':'rgba(0,0,0,.20)');
       ctx.save();ctx.beginPath();ctx.arc(avatarX+avatarSize/2,avatarY+avatarSize/2,avatarSize/2,0,Math.PI*2);ctx.clip();
