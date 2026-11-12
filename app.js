@@ -782,7 +782,7 @@ function renderPlayerStats() {
 function renderTeams() {
   $("#matchDateLabel").textContent = state.matchDate ? new Date(`${state.matchDate}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "";
   const drawTeam = (team, target) => {
-    $(target).innerHTML = entryPlayers(team).map(player => `
+    $(target).innerHTML = entryPlayers(team).sort((a, b) => Number(!!b.fixedGoalkeeper) - Number(!!a.fixedGoalkeeper)).map(player => `
       <div class="team-player ${selectedSwapId === player.id ? "swap-selected" : ""}">
         <span class="team-person">${playerAvatar(player)}<b>${escapeHtml(player.name)}${player.fixedGoalkeeper ? '<small class="keeper-badge">Goleiro fixo</small>' : ""}</b></span>
         ${adminMode ? `<span class="team-player-actions"><span class="rating" title="${player.fixedGoalkeeper ? (availablePlayers().filter(item=>item.fixedGoalkeeper).length === activeTeamKeys().length ? "Nota no gol usada no equilíbrio" : balanceWeight(player) === 5 ? "Goleiro único: peso 5 no equilíbrio dos times" : "Goleiros incompletos: nota desconsiderada") : "Nota na linha"}">${player.fixedGoalkeeper ? goalkeeperBalanceLabel(player) : player.rating || "—"}</span><button class="swap-button" type="button" data-swap="${escapeHtml(player.id)}" aria-pressed="${selectedSwapId === player.id}" aria-label="${selectedSwapId === player.id ? "Cancelar troca de" : "Selecionar para troca:"} ${escapeHtml(player.name)}">${selectedSwapId === player.id ? "Selecionado" : "Trocar"}</button></span>` : ""}
