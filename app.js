@@ -431,9 +431,15 @@ function recentAchievements() {
   const previous = history(true), current = history(false);
   const items = [];
   for (const player of state.players.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'))) {
-    const earned = new Set(playerAchievements(player.id,previous).filter(badge=>badge.unlocked).map(badge=>badge.key));
+    const previousBadges = new Map(playerAchievements(player.id,previous).map(badge=>[badge.key,badge]));
     for (const badge of playerAchievements(player.id,current)) {
-      if (badge.unlocked && !earned.has(badge.key)) items.push({player,badge});
+      if (!badge.unlocked) continue;
+      const earlier = previousBadges.get(badge.key);
+      if (badge.opponentIds) {
+        const priorOpponents = new Set(earlier?.opponentIds || []);
+        const newOpponents = badge.opponentIds.filter(id=>!priorOpponents.has(id));
+        if (newOpponents.length) items.push({player,badge:{...badge,extra:`Contra: ${newOpponents.map(id=>state.players.find(person=>person.id===id)?.name || 'Jogador removido').join(', ')}`}});
+      } else if (!earlier?.unlocked) items.push({player,badge});
     }
   }
   return {date,items};
@@ -671,7 +677,7 @@ function playerAchievements(playerId, history = state) {
   ]) {
     const qualified = rivals.filter(rival=>value(rival)>=goal);
     const best = Math.max(0,...rivals.map(value));
-    badges.push({key,icon,name,detail,unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:qualified.length ? `Contra: ${qualified.slice(0,4).map(rival=>state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido').join(', ')}` : 'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
+    badges.push({key,icon,name,detail,opponentIds:qualified.map(rival=>rival.id),unlocked:qualified.length>0,progress:Math.min(100,best/goal*100),extra:qualified.length ? `Contra: ${qualified.slice(0,4).map(rival=>state.players.find(player=>player.id===rival.id)?.name || 'Jogador removido').join(', ')}` : 'Conta apenas a sequência de confrontos contra a mesma pessoa.'});
   }
   return badges;
 }
