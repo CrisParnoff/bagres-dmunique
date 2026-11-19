@@ -469,6 +469,7 @@ async function handleVoting(request,env,url) {
           if(poll.status!=='open')return json({error:'Votação encerrada'},409);
           const ids=poll.participants.map(p=>p.id);
           if(![body.voter,body.mvp,body.bagre].every(id=>typeof id==='string'&&ids.includes(id)))return json({error:'Escolha participantes da rodada'},400);
+          if(body.voter===body.mvp||body.voter===body.bagre)return json({error:'Você não pode votar em si mesmo para MVP nem Bagre.'},400);
           if(Object.hasOwn(poll.ballots,body.voter))return json({error:'Este nome já votou. Se não foi você, procure o admin.'},409);
           Object.defineProperty(poll.ballots,body.voter,{value:{mvp:body.mvp,bagre:body.bagre},enumerable:true,writable:true,configurable:true});
         }

@@ -15,6 +15,8 @@ assert.equal((await req('open')).status,403);
 assert.equal((await req('open',{},true)).status,200);
 assert.equal((await req('vote',{voter:'outside',mvp:'a',bagre:'b'})).status,400);
 assert.equal((await req('vote',{voter:'a',mvp:'a',bagre:'b'},false,'https://evil.example')).status,403);
+assert.equal((await req('vote',{voter:'a',mvp:'a',bagre:'b'})).status,400);
+assert.equal((await req('vote',{voter:'a',mvp:'b',bagre:'a'})).status,400);
 const concurrent=await Promise.all([req('vote',{voter:'a',mvp:'b',bagre:'c'}),req('vote',{voter:'b',mvp:'a',bagre:'c'})]);
 assert.ok(concurrent.every(r=>r.status===200));assert.equal(Object.keys(state.voting['2026-11-12'].ballots).length,2);
 assert.equal((await req('vote',{voter:'a',mvp:'c',bagre:'b'})).status,409);
