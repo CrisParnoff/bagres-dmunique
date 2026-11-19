@@ -407,12 +407,25 @@ function votingDays(state) {
   (state.rounds||[]).filter(r=>r.closed).forEach(r=>add(r.date,Object.values(r.teams).flat()));
   return [...days].sort(([a],[b])=>b.localeCompare(a)).map(([date,people])=>({date,participants:[...people].map(id=>({id,name:state.players.find(p=>p.id===id).name}))}));
 }
+function votingLeaders(poll,key) {
+  const counts=new Map(poll.participants.map(p=>[p.id,0]));
+  for(const vote of Object.values(poll.ballots||{}))if(counts.has(vote[key]))counts.set(vote[key],counts.get(vote[key])+1);
+  const best=Math.max(0,...counts.values());
+  return best?[...counts].filter(([,value])=>value===best).map(([id])=>id):[];
+}
+function applyVotingAwards(state,date,poll,mvp,bagre) {
+  const targets=[...(state.rounds||[]).filter(r=>r.date===date&&r.closed),...state.matches.filter(m=>m.date===date&&!m.roundId)];
+  if(targets.length!==1)return false;
+  targets[0].mvpPlayerId=mvp;targets[0].bolaMurchaPlayerId=bagre;
+  poll.awards={mvp,bagre};return true;
+}
 function votingView(state,date) {
   const days=votingDays(state), selected=date||days[0]?.date;
   const poll=state.voting?.[selected];
   const participants=poll?.participants || days.find(d=>d.date===selected)?.participants || [];
   const ballots=Object.values(poll?.ballots||{});
   return {date:selected||null,days:days.map(d=>d.date),status:poll?.status||'not-open',participants,voted:Object.keys(poll?.ballots||{}),total:ballots.length,
+    awards:poll?.awards||null,leaders:{mvp:poll?votingLeaders(poll,'mvp'):[],bagre:poll?votingLeaders(poll,'bagre'):[]},
     results:participants.map(p=>({...p,mvp:ballots.filter(v=>v.mvp===p.id).length,bagre:ballots.filter(v=>v.bagre===p.id).length}))};
 }
 async function handleVoting(request,env,url) {
@@ -423,7 +436,7 @@ async function handleVoting(request,env,url) {
     if(!sameOrigin(request,url)||!request.headers.get('Content-Type')?.startsWith('application/json'))return json({error:'Requisição inválida'},403);
     const raw=await request.text();if(raw.length>4096)return json({error:'Dados muito grandes'},413);
     let body;try{body=JSON.parse(raw);}catch{return json({error:'Dados inválidos'},400);}
-    if(!body||!/^\d{4}-\d{2}-\d{2}$/.test(body.date)||!['open','close','vote','remove'].includes(body.action))return json({error:'Dados inválidos'},400);
+    if(!body||!/^\d{4}-\d{2}-\d{2}$/.test(body.date)||!['open','close','vote','remove','awards'].includes(body.action))return json({error:'Dados inválidos'},400);
     if(body.action!=='vote'&&!await isAdmin(request,env))return json({error:'Acesso de admin necessário'},403);
     for(let attempt=0;attempt<4;attempt++) {
       const current=await getState(env), state=current.state;
@@ -435,12 +448,22 @@ async function handleVoting(request,env,url) {
         if(!poll)poll=state.voting[body.date]={status:'open',participants:day.participants,ballots:{}};
         if(poll.participants.length<2)return json({error:'São necessários pelo menos dois participantes'},400);
         poll.status='open';
+        delete poll.awards;
       } else {
         if(!poll)return json({error:'A votação ainda não foi aberta'},409);
-        if(body.action==='close')poll.status='closed';
+        if(body.action==='close'||body.action==='awards') {
+          if(body.action==='awards'&&poll.status!=='closed')return json({error:'Encerre a votação antes de definir os prêmios'},409);
+          const mvpLeaders=votingLeaders(poll,'mvp'), bagreLeaders=votingLeaders(poll,'bagre');
+          const mvp=body.action==='awards'?body.mvp:mvpLeaders.length===1?mvpLeaders[0]:null;
+          const bagre=body.action==='awards'?body.bagre:bagreLeaders.length===1?bagreLeaders[0]:null;
+          if(body.action==='awards'&&(!mvpLeaders.includes(mvp)||!bagreLeaders.includes(bagre)))return json({error:'Escolha entre os mais votados de cada categoria. Atualize a parcial.'},409);
+          if(mvp&&bagre&&!applyVotingAwards(state,body.date,poll,mvp,bagre))return json({error:'Há mais de um registro neste dia. Defina os prêmios pela aba Partida.'},409);
+          poll.status='closed';
+        }
         if(body.action==='remove') {
           if(!Object.hasOwn(poll.ballots,body.voter))return json({error:'Esse participante ainda não votou'},409);
           delete poll.ballots[body.voter];
+          delete poll.awards;
         }
         if(body.action==='vote') {
           if(poll.status!=='open')return json({error:'Votação encerrada'},409);

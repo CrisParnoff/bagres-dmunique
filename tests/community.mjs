@@ -40,3 +40,21 @@ let stats=vm.runInContext('playerRunStats("a")',front);assert.equal(stats.best.u
 vm.runInContext(`state.rounds=[{id:'open',date:'2026-11-19',closed:true,championTeam:'A',teams:{A:['a'],B:['b'],C:['c']},keepers:{},contributions:{a:{goals:5,assists:3}}}];`,front);
 stats=vm.runInContext('playerRunStats("a")',front);assert.equal(stats.current.win,1);assert.equal(stats.maxGoals,5);assert.equal(stats.maxAssists,3);
 console.log('Passed: voting permissions, duplicates, concurrent writes, partial privacy, removal/revote, close/reopen, preservation and daily streaks/records.');
+
+// Award publication is atomic, admin-only and validates leaders on the server.
+state.matches[0].mvpPlayerId=null;state.matches[0].bolaMurchaPlayerId=null;
+state.voting['2026-11-12']={status:'open',participants:state.players.map(({id,name})=>({id,name})),ballots:{a:{mvp:'b',bagre:'c'},b:{mvp:'b',bagre:'c'}}};
+assert.equal((await req('close')).status,403);
+assert.equal((await req('close',{},true)).status,200);
+assert.equal(state.matches[0].mvpPlayerId,'b');assert.equal(state.matches[0].bolaMurchaPlayerId,'c');
+assert.equal((await req('awards',{mvp:'a',bagre:'c'},true)).status,409);
+await req('open',{},true);state.voting['2026-11-12'].ballots.b={mvp:'a',bagre:'c'};
+await req('close',{},true);assert.equal(state.voting['2026-11-12'].awards,undefined);
+assert.equal((await req('awards',{mvp:'a',bagre:'c'})).status,403);
+assert.equal((await req('awards',{mvp:'a',bagre:'c'},true)).status,200);
+assert.equal(state.matches[0].mvpPlayerId,'a');assert.equal(state.matches[0].bolaMurchaPlayerId,'c');
+state.rounds=[{id:'r',date:'2026-11-12',closed:true,teams:{A:['a'],B:['b'],C:['c']}}];state.matches[0].roundId='r';
+assert.equal((await req('awards',{mvp:'b',bagre:'c'},true)).status,200);
+assert.equal(state.rounds[0].mvpPlayerId,'b');assert.equal(state.rounds[0].bolaMurchaPlayerId,'c');
+assert.equal(state.matches[0].mvpPlayerId,'a','round games must not get individual awards');
+console.log('Passed: automatic awards, tied leader selection, admin checks, invalid winner rejection and three-team award placement.');

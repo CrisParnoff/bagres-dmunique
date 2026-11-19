@@ -9,7 +9,7 @@ Para retirar este teste, reverta o commit que adiciona estas funcionalidades; n�
 - Cada participante escolhe seu nome e envia um MVP e um Bagre. O teste permite votar em si e na mesma pessoa nas duas categorias. Identificação declarada, sem autenticação individual.
 - Votos individuais não saem pela API, inclusive para admin. Parciais e identificação de quem já votou são públicas.
 - Admin pode remover o envio completo de uma pessoa, sem ver suas escolhas. Novo envio exige votação aberta.
-- Nenhum resultado é aplicado automaticamente às premiações oficiais, inclusive em caso de empate.
+- Encerrar aplica os líderes únicos às premiações oficiais. Se houver empate, o admin confirma os vencedores entre os líderes pela mesma aba. As duas categorias são aplicadas juntas. Se houver vários registros independentes no mesmo dia, é necessário usar os controles da partida. Reabrir/remover votos não apaga os prêmios oficiais anteriores; confirmar novamente atualiza esses prêmios.
 - Gravação usa controle de versão e tentativas em caso de concorrência; não requer nova tabela. Votos também avançam a versão do estado. Se um admin estiver com dados antigos, o salvamento normal pode pedir recarregamento em vez de sobrescrever dados.
 
 Validação: `npm test`, incluindo `tests/community.mjs` para duplicidade, concorrência, permissões, privacidade, remoção/reenvio, reabertura, preservação e sequências.
