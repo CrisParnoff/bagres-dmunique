@@ -168,7 +168,7 @@ function initialState() {
 
 function publicState(state) {
   return {
-    ...state,
+    ...withoutPrivate(state),
     rounds: (state.rounds || []).map(({id,date,closed,championTeam,teams,names,keepers,contributions,mvpPlayerId,bolaMurchaPlayerId}) => ({id,date,closed,championTeam,teams: Object.fromEntries(["A","B","C"].map(key => [key,teams[key]])), names: Object.fromEntries(["A","B","C"].map(key => [key,names[key]])), keepers: Object.fromEntries(["A","B","C"].map(key => [key,keepers[key]])), contributions,mvpPlayerId,bolaMurchaPlayerId})),
     players: state.players.map(({ id, name, available, team, stats, photoKey, fixedGoalkeeper, manualStats, manualStatsByYear }) => ({ id, name, available, team, stats, photoKey, fixedGoalkeeper, manualStats, manualStatsByYear })),
     matches: state.matches.map(({ roundId, scheduleIndex, teamAKey, teamBKey, id, date, teamAName, teamBName, scoreA, scoreB, teamA, teamB, contributions, mvpPlayerId, bolaMurchaPlayerId, goalkeeperAId, goalkeeperBId }) =>
@@ -189,7 +189,7 @@ const externalFetch = env => env.EXTERNAL_FETCH || fetch;
 
 function withoutPrivate(state) {
   if (!state || typeof state !== "object" || Array.isArray(state)) return state;
-  const { aiSettings, ...rest } = state;
+  const { aiSettings, voting, ...rest } = state;
   return rest;
 }
 
@@ -204,7 +204,7 @@ async function saveAiSettings(env, update) {
   const current = await getState(env);
   const previous = current.state?.aiSettings || {};
   const aiSettings = { prompt: update.prompt ?? previous.prompt ?? "", key: update.key ?? previous.key ?? "", updatedAt: new Date().toISOString() };
-  const data = JSON.stringify({ ...withoutPrivate(current.state), aiSettings });
+  const data = JSON.stringify({ ...current.state, aiSettings });
   if (current.version === 0) {
     const result = await env.DB.prepare("INSERT OR IGNORE INTO site_state (id, data, version) VALUES (1, ?, 1)").bind(data).run();
     return result.meta.changes ? { version: 1, settings: aiSettings } : null;
@@ -399,6 +399,65 @@ function readLedger(csv) {
   return { balance: balance ?? total, entries: entries.slice(-1000) };
 }
 
+// Experimental voting: raw ballots never leave the server.
+function votingDays(state) {
+  const days = new Map(), ids = new Set(state.players.map(p=>p.id));
+  const add=(date,people)=>{if(!days.has(date))days.set(date,new Set());people.filter(id=>ids.has(id)).forEach(id=>days.get(date).add(id));};
+  (state.matches||[]).filter(m=>!m.roundId).forEach(m=>add(m.date,[...m.teamA,...m.teamB]));
+  (state.rounds||[]).filter(r=>r.closed).forEach(r=>add(r.date,Object.values(r.teams).flat()));
+  return [...days].sort(([a],[b])=>b.localeCompare(a)).map(([date,people])=>({date,participants:[...people].map(id=>({id,name:state.players.find(p=>p.id===id).name}))}));
+}
+function votingView(state,date) {
+  const days=votingDays(state), selected=date||days[0]?.date;
+  const poll=state.voting?.[selected];
+  const participants=poll?.participants || days.find(d=>d.date===selected)?.participants || [];
+  const ballots=Object.values(poll?.ballots||{});
+  return {date:selected||null,days:days.map(d=>d.date),status:poll?.status||'not-open',participants,voted:Object.keys(poll?.ballots||{}),total:ballots.length,
+    results:participants.map(p=>({...p,mvp:ballots.filter(v=>v.mvp===p.id).length,bagre:ballots.filter(v=>v.bagre===p.id).length}))};
+}
+async function handleVoting(request,env,url) {
+  if(!env.DB)return json({error:'Armazenamento indisponível'},503);
+  try {
+    if(request.method==='GET')return json(votingView((await getState(env)).state,url.searchParams.get('date')));
+    if(request.method!=='POST')return json({error:'Método não permitido'},405);
+    if(!sameOrigin(request,url)||!request.headers.get('Content-Type')?.startsWith('application/json'))return json({error:'Requisição inválida'},403);
+    const raw=await request.text();if(raw.length>4096)return json({error:'Dados muito grandes'},413);
+    let body;try{body=JSON.parse(raw);}catch{return json({error:'Dados inválidos'},400);}
+    if(!body||!/^\d{4}-\d{2}-\d{2}$/.test(body.date)||!['open','close','vote','remove'].includes(body.action))return json({error:'Dados inválidos'},400);
+    if(body.action!=='vote'&&!await isAdmin(request,env))return json({error:'Acesso de admin necessário'},403);
+    for(let attempt=0;attempt<4;attempt++) {
+      const current=await getState(env), state=current.state;
+      const day=votingDays(state).find(d=>d.date===body.date);
+      if(!day)return json({error:'Rodada encerrada não encontrada'},404);
+      state.voting??={};
+      let poll=state.voting[body.date];
+      if(body.action==='open') {
+        if(!poll)poll=state.voting[body.date]={status:'open',participants:day.participants,ballots:{}};
+        if(poll.participants.length<2)return json({error:'São necessários pelo menos dois participantes'},400);
+        poll.status='open';
+      } else {
+        if(!poll)return json({error:'A votação ainda não foi aberta'},409);
+        if(body.action==='close')poll.status='closed';
+        if(body.action==='remove') {
+          if(!Object.hasOwn(poll.ballots,body.voter))return json({error:'Esse participante ainda não votou'},409);
+          delete poll.ballots[body.voter];
+        }
+        if(body.action==='vote') {
+          if(poll.status!=='open')return json({error:'Votação encerrada'},409);
+          const ids=poll.participants.map(p=>p.id);
+          if(![body.voter,body.mvp,body.bagre].every(id=>typeof id==='string'&&ids.includes(id)))return json({error:'Escolha participantes da rodada'},400);
+          if(Object.hasOwn(poll.ballots,body.voter))return json({error:'Este nome já votou. Se não foi você, procure o admin.'},409);
+          Object.defineProperty(poll.ballots,body.voter,{value:{mvp:body.mvp,bagre:body.bagre},enumerable:true,writable:true,configurable:true});
+        }
+      }
+      const data=JSON.stringify(state);if(data.length>1000000)return json({error:'Limite de armazenamento atingido'},413);
+      const result=await env.DB.prepare('UPDATE site_state SET data = ?, version = version + 1 WHERE id = 1 AND version = ?').bind(data,current.version).run();
+      if(result.meta.changes)return json(votingView(state,body.date));
+    }
+    return json({error:'Houve outro voto ao mesmo tempo. Tente novamente.'},409);
+  }catch(error){console.error('Voting failed',error.message);return json({error:'Não foi possível acessar a votação. Tente novamente.'},503);}
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -528,6 +587,7 @@ export default {
         return aiFailure("unavailable");
       }
     }
+    if (url.pathname === "/api/voting") return handleVoting(request, env, url);
     if (url.pathname === "/api/state") {
       if (!env.DB) return json({ error: "Armazenamento indisponível" }, 503);
       try {
@@ -544,8 +604,8 @@ export default {
         const incoming = withoutPrivate(body.state);
         if (!Number.isInteger(body.expectedVersion) || body.expectedVersion < 0 || !validState(incoming)) return json({ error: "Dados inválidos" }, 400);
         // A configuração da IA não vem do navegador: preserva a que já está salva.
-        const aiSettings = body.expectedVersion > 0 ? (await getState(env)).state?.aiSettings : null;
-        const data = JSON.stringify(aiSettings ? { ...incoming, aiSettings } : incoming);
+        const stored = body.expectedVersion > 0 ? (await getState(env)).state : {};
+        const data = JSON.stringify({ ...incoming, ...(stored.aiSettings ? {aiSettings:stored.aiSettings} : {}), ...(stored.voting ? {voting:stored.voting} : {}) });
         if (data.length > 1000000) return json({ error: "Dados muito grandes" }, 413);
         if (body.expectedVersion === 0) {
           const result = await env.DB.prepare("INSERT OR IGNORE INTO site_state (id, data, version) VALUES (1, ?, 1)").bind(data).run();

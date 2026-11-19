@@ -162,6 +162,7 @@ async function deletePlayerPhoto(id, photoKey) {
 function setTab(tabId) {
   if (tabId === "jogadores" && !adminMode) tabId = "inicio";
   if (tabId === "inicio") renderHome();
+  if (tabId === "votacao") loadVoting();
   if (tabId === "transparencia") loadCashLedger();
   $$(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.tab === tabId));
   $$(".view").forEach(view => view.classList.toggle("active", view.id === tabId));
@@ -217,6 +218,7 @@ function render() {
   renderHome();
   renderRound();
   renderMonthlyMembers();
+  renderVoting();
 }
 
 function recordedGameCount(matches) {
@@ -463,6 +465,7 @@ function renderHome() {
   renderHomeLineup();
   renderHomeResults();
   renderHomeAchievements();
+  renderHotStreaks();
 }
 
 function currentMonthValue() {
@@ -782,6 +785,7 @@ function renderPlayerStats() {
   $("#stats-evolution-title").textContent = keeperFocus ? "Sua evolução no gol" : "Sua evolução";
   $("#statsChartPill").textContent = keeperFocus ? "Gols sofridos por dia" : "Gols + assistências";
   if (keeperFocus) renderKeeperChart(player,matches); else renderStatsChart(player,matches);
+  $("#playerStatsGrid").innerHTML += personalRecordsMarkup(player);
   renderAchievements(player);
 }
 
@@ -1756,6 +1760,82 @@ async function setMonthlyMember(playerId, active, month) {
   } finally { monthlySaving = false; renderMonthlyMembers(); }
 }
 
+// ---------- Teste: sequências, recordes e votação ----------
+function playerRunStats(playerId) {
+  const days=new Map();
+  for(const entry of playerDayEntries(playerId)) {
+    const day=days.get(entry.date)||{date:entry.date,goals:0,assists:0,win:true,unbeaten:true};
+    day.goals+=entry.goals;day.assists+=entry.assists;
+    day.win&&=entry.result==='win';day.unbeaten&&=entry.result!=='loss';days.set(entry.date,day);
+  }
+  const rows=[...days.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const current={win:0,unbeaten:0,goals:0,assists:0},best={win:0,unbeaten:0,goals:0,assists:0};
+  for(const row of rows)for(const key of Object.keys(current)) {current[key]=row[key]?current[key]+1:0;best[key]=Math.max(best[key],current[key]);}
+  return {current,best,lastDate:rows.at(-1)?.date,maxGoals:Math.max(0,...rows.map(r=>r.goals)),maxAssists:Math.max(0,...rows.map(r=>r.assists))};
+}
+function renderHotStreaks() {
+  const target=$('#homeHotStreaks');if(!target)return;
+  const records=state.players.map(player=>({player,...playerRunStats(player.id)}));
+  const lastDate=records.map(r=>r.lastDate).filter(Boolean).sort().at(-1);
+  const categories=[['unbeaten','🔥','rodadas sem perder'],['goals','⚽','rodadas seguidas marcando'],['assists','🎯','rodadas seguidas com assistência']];
+  const cards=categories.flatMap(([key,icon,label])=>{
+    const eligible=records.filter(r=>r.lastDate===lastDate&&r.current[key]>=2);
+    const top=Math.max(0,...eligible.map(r=>r.current[key]));
+    const leaders=eligible.filter(r=>r.current[key]===top);
+    return leaders.length?[`<article class="hot-card"><span class="hot-icon">${icon}</span><strong>${top}</strong><p>${label}</p><b>${leaders.map(r=>escapeHtml(r.player.name)).join(' · ')}</b></article>`]:[];
+  });
+  target.innerHTML=cards.length?cards.join(''):'<p class="muted">As sequências aparecem a partir de duas rodadas, entre quem participou do último jogo encerrado.</p>';
+}
+function personalRecordsMarkup(player) {
+  const r=playerRunStats(player.id);
+  return `<article class="stats-group"><h4>RECORDES PESSOAIS · HISTÓRICO</h4><dl>${[['Vitórias seguidas',r.best.win],['Rodadas sem perder',r.best.unbeaten],['Rodadas seguidas marcando',r.best.goals],['Rodadas seguidas com assistência',r.best.assists],['Gols em uma rodada',r.maxGoals],['Assistências em uma rodada',r.maxAssists]].map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl><p class="muted small">Rodadas em que participou. Dias com três times contam uma vez. Usa os jogos registrados, sem totais inseridos manualmente.</p></article>`;
+}
+let votingData=null, votingBusy=false, votingLoading=false, votingRequest=0;
+async function loadVoting(date=$('#votingDate')?.value||'') {
+  if(votingBusy)return;
+  const request=++votingRequest;votingLoading=true;
+  if(votingData && date && date!==votingData.date){votingData=null;renderVoting();}
+  try {
+    const response=await fetch('/api/voting'+(date?'?date='+encodeURIComponent(date):''),{cache:'no-store'});
+    const result=await response.json();if(!response.ok)throw Error(result.error||'Não foi possível carregar a votação');
+    if(request!==votingRequest)return;
+    votingData=result;renderVoting();$('#votingMessage').textContent='';
+  }catch(error){if(request===votingRequest)$('#votingMessage').textContent=error.message;}
+  finally{if(request===votingRequest)votingLoading=false;}
+}
+function renderVoting() {
+  const target=$('#votingContent');if(!target)return;
+  if(!votingData){target.innerHTML='<p class="muted">Abra esta aba para carregar as votações.</p>';return;}
+  const d=votingData,selected={};
+  for(const id of ['votingPerson','votingMvp','votingBagre'])selected[id]=$('#'+id)?.value||'';
+  $('#votingDate').innerHTML=d.days.map(date=>`<option value="${date}">${homeDate(date,{day:'2-digit',month:'2-digit',year:'numeric'})}</option>`).join('');
+  $('#votingDate').value=d.date||'';$('#votingDate').disabled=votingBusy;
+  if(!d.date){target.innerHTML='<p class="empty-state">Registre uma partida ou encerre uma rodada para abrir a votação.</p>';return;}
+  const labels={open:'Votação aberta',closed:'Votação encerrada','not-open':'Aguardando abertura pelo admin'};
+  const options=(voter=false)=>'<option value="">'+(voter?'Selecione seu nome':'Selecione o jogador')+'</option>'+d.participants.map(p=>`<option value="${escapeHtml(p.id)}" ${voter&&d.voted.includes(p.id)?'disabled':''}>${escapeHtml(p.name)}${voter&&d.voted.includes(p.id)?' — já votou':''}</option>`).join('');
+  const partial=(key,title)=>`<article class="card vote-results"><h3>${title}</h3>${d.results.slice().sort((a,b)=>b[key]-a[key]||a.name.localeCompare(b.name,'pt-BR')).map(p=>`<div class="vote-result"><div><b>${escapeHtml(p.name)}</b><span>${p[key]} ${p[key]===1?'voto':'votos'} · ${d.total?Math.round(100*p[key]/d.total):0}%</span></div><progress max="${Math.max(1,d.total)}" value="${p[key]}" aria-label="${escapeHtml(p.name)}: ${p[key]} votos"></progress></div>`).join('')}</article>`;
+  target.innerHTML=`<div class="vote-status"><strong>${labels[d.status]}</strong><span>${d.total} de ${d.participants.length} participantes votaram</span></div>
+    ${adminMode?`<div class="card vote-admin"><h3>Controle da votação</h3><button type="button" class="button" data-vote-action="${d.status==='open'?'close':'open'}" ${votingBusy?'disabled':''}>${d.status==='open'?'Encerrar votação':d.status==='closed'?'Reabrir votação':'Abrir votação'}</button><p class="muted small">A parcial não altera os prêmios da partida. Após encerrar, registre o MVP e o Bagre pelos controles já existentes.</p><h4>Participantes que já votaram</h4>${d.voted.length?d.participants.filter(p=>d.voted.includes(p.id)).map(p=>`<div class="vote-admin-row"><b>${escapeHtml(p.name)}</b><button type="button" class="mini-button danger" data-vote-remove="${escapeHtml(p.id)}" ${votingBusy?'disabled':''}>Remover voto e liberar novamente</button></div>`).join(''):'<p class="muted">Ninguém votou ainda.</p>'}</div>`:''}
+    ${d.status==='open'?`<form id="votingForm" class="card vote-form"><h3>Seu voto na rodada</h3><p class="muted">Identifique-se pelo seu próprio nome. Um envio por participante, com um voto para cada categoria. Se seu nome já foi usado por outra pessoa, procure o admin.</p><div class="vote-fields"><label>Quem é você?<select id="votingPerson" required ${votingBusy?'disabled':''}>${options(true)}</select></label><label>MVP da rodada<select id="votingMvp" required ${votingBusy?'disabled':''}>${options()}</select></label><label>Bagre da rodada<select id="votingBagre" required ${votingBusy?'disabled':''}>${options()}</select></label></div><button class="button primary" type="submit" ${votingBusy?'disabled':''}>${votingBusy?'Salvando…':'Confirmar meus votos'}</button><p class="muted small">As escolhas individuais não são exibidas. A identificação pelo nome depende da honestidade do grupo.</p></form>`:''}
+    <div class="section-heading"><h3>${d.status==='closed'?'Resultado da votação':'Parcial da votação'}</h3><span class="muted small">Atualiza a cada 20 segundos nesta aba</span></div><div class="vote-results-grid">${partial('mvp','⭐ MVP')}${partial('bagre','🐟 Bagre')}</div>`;
+  for(const id of Object.keys(selected)){const input=$('#'+id);if(input)input.value=selected[id];}
+  $('#votingForm')?.addEventListener('submit',event=>{event.preventDefault();submitVoting({action:'vote',voter:$('#votingPerson').value,mvp:$('#votingMvp').value,bagre:$('#votingBagre').value});});
+  $$('[data-vote-action]').forEach(button=>button.addEventListener('click',()=>submitVoting({action:button.dataset.voteAction})));
+  $$('[data-vote-remove]').forEach(button=>button.addEventListener('click',()=>{if(confirm('Remover os votos de MVP e Bagre deste participante? Ele poderá votar novamente se a votação estiver aberta.'))submitVoting({action:'remove',voter:button.dataset.voteRemove});}));
+}
+async function submitVoting(payload) {
+  if(votingBusy||!votingData?.date)return;
+  if(payload.action==='vote'&&(!payload.voter||!payload.mvp||!payload.bagre))return;
+  votingBusy=true;++votingRequest;renderVoting();$('#votingMessage').textContent='Salvando…';
+  try {
+    const response=await fetch('/api/voting',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,date:votingData.date})});
+    const result=await response.json();if(!response.ok)throw Error(result.error||'Não foi possível salvar');
+    votingData=result;$('#votingMessage').textContent=payload.action==='vote'?'Votos registrados!':payload.action==='remove'?'Votos removidos. O nome foi liberado.':'Votação atualizada.';
+    if(adminMode)await loadRemote();
+  }catch(error){$('#votingMessage').textContent=error.message;}
+  finally{votingBusy=false;renderVoting();}
+}
+
 $$('.tab').forEach(tab => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
 $("#adminToggle").addEventListener("click", toggleAdmin);
 $("#cancelPassword").addEventListener("click", () => { $("#passwordForm").classList.add("hidden"); $("#adminPassword").value = ""; });
@@ -2047,3 +2127,7 @@ $("#generateArtwork").addEventListener("click", async () => {
 });
 
 $("#monthlyMembersMonth").addEventListener("change", renderMonthlyMembers);
+
+$("#votingDate").addEventListener("change",()=>loadVoting());
+$("#refreshVoting").addEventListener("click",()=>loadVoting());
+setInterval(()=>{if(document.visibilityState!=="hidden" && $("#votacao")?.classList.contains("active") && !votingBusy && !votingLoading)loadVoting();},20000);

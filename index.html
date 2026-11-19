@@ -70,6 +70,7 @@
       <button class="tab" data-tab="ranking" type="button"><svg class="icon" aria-hidden="true"><use href="#i-trophy" /></svg><span>Ranking</span></button>
       <button class="tab" data-tab="stats" type="button"><svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg><span>Stats</span></button>
       <button class="tab" data-tab="destaques" type="button"><svg class="icon" aria-hidden="true"><use href="#i-flame" /></svg><span>Destaques</span></button>
+      <button class="tab" data-tab="votacao" type="button"><svg class="icon" aria-hidden="true"><use href="#i-trophy" /></svg><span>Votação</span></button>
       <button class="tab" data-tab="transparencia" type="button"><svg class="icon" aria-hidden="true"><use href="#i-archive" /></svg><span>Transparência</span></button>
     </nav>
 
@@ -125,6 +126,7 @@
           <div id="homeAchievements"></div>
         </section>
 
+        <section class="home-achievements" aria-labelledby="hot-title"><div class="home-head"><h3 id="hot-title">Quem tá em alta 🔥</h3><button class="text-button" type="button" data-home-tab="stats">Ver recordes nos Stats</button></div><p class="muted small">Sequências nas rodadas em que participou. Destaques presentes no último jogo encerrado.</p><div id="homeHotStreaks" class="hot-grid"></div></section>
         <section class="lineup" aria-labelledby="lineup-title">
           <div class="home-head">
             <h3 id="lineup-title">Escalação da semana</h3>
@@ -432,7 +434,8 @@
         <p class="muted small stats-footnote">As médias de gols e assistências consideram apenas partidas na linha. Os totais de gols e assistências incluem também os feitos como goleiro. A média de gols sofridos usa apenas partidas como goleiro fixo; resultados e premiações contam em qualquer posição. Nas rodadas de três times, os nove jogos contam como uma rodada; o gráfico mostra os totais do dia após o fechamento.</p>
         <section id="playerAchievements" class="card player-achievements" aria-label="Conquistas do jogador"></section>
       </section>
-      <section id="transparencia" class="view" aria-labelledby="transparency-title">
+      <section id="votacao" class="view"><div class="section-heading"><div><h2>Votação da rodada</h2><p class="muted">MVP e Bagre escolhidos por quem esteve em quadra.</p></div></div><div class="vote-toolbar"><label>Rodada<select id="votingDate"></select></label><button type="button" id="refreshVoting" class="button ghost">Atualizar parcial</button></div><p id="votingMessage" role="status" aria-live="polite"></p><div id="votingContent"></div></section>
+    <section id="transparencia" class="view" aria-labelledby="transparency-title">
         <div class="section-intro">
           <h2 id="transparency-title">Transparência</h2>
           <p class="muted">Acompanhe as entradas e saídas do caixa na planilha oficial do FC Bagres.</p>
