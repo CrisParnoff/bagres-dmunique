@@ -93,7 +93,7 @@ assert.equal(valid(mutate(s=>s.matches.shift())),false,'closed round must have a
 assert.equal(valid(mutate(s=>s.rounds[0].contributions.p0.goals=99)),false);
 assert.ok(valid(mutate(s=>{s.rounds[0].mvpPlayerId='fora';s.rounds[0].bolaMurchaPlayerId='fora';s.matches.find(m=>m.id==='old').bolaMurchaPlayerId='fora';})),'awards may go to someone outside the lineup');
 assert.equal(valid(mutate(s=>{s.rounds[0].bolaMurchaPlayerId='id inválido';})),false);
-assert.equal(valid(mutate(s=>{s.rounds[0].mvpPlayerId=null;})),false,'closed round still needs an MVP');
+assert.equal(valid(mutate(s=>{s.rounds[0].mvpPlayerId=null;})),true,'closed round can await voting');
 backend.sample=sample; const pub=vm.runInContext('publicState(sample)',backend); assert.equal(pub.players[0].rating,undefined); assert.equal(pub.matches[0].roundId,sample.rounds[0].id);
 // Draws leave a tie; only one chosen tied team is champion.
 const drawDay = mutate(s=>{s.matches.filter(m=>m.roundId).forEach(m=>{m.scoreA=2;m.scoreB=2;});s.rounds[0].championTeam='C';}); assert.ok(valid(drawDay));
@@ -116,7 +116,7 @@ run('adminMode=true; realRender(); adminMode=false; realRender();');
 run('adminMode=true; state.matches.forEach(m=>{m.scoreA=2;m.scoreB=2;});');
 // The Bagre may be someone outside the lineup (confirmed in the UI).
 run('state.players.push({id:"p99",name:"Visitante",rating:3,available:false,team:null,stats:emptyStats()});');
-node('#matchMvp').value = run('round.teams.A[0]'); node('#matchBolaMurcha').value = 'p99';
+run('round.mvpPlayerId=null; round.bolaMurchaPlayerId=null');
 node('#roundChampion').value = '';
 await run('closeRound()'); assert.equal(run('currentRound().closed'),false);
 node('#roundChampion').value = 'C';
@@ -125,15 +125,9 @@ assert.equal(run('currentRound().championTeam'),'C');
 assert.equal(run('rankingStatsForMatches(state.matches).get(currentRound().teams.C[0]).wins'),1);
 assert.equal(run('rankingStatsForMatches(state.matches).get(currentRound().teams.A[0]).wins'),0);
 assert.ok(valid(run('structuredClone(state)')));
-assert.equal(run('currentRound().bolaMurchaPlayerId'),'p99','outsider Bagre is saved');
-assert.equal(run('rankingStatsForMatches(state.matches).get("p99").bolaMurchas'),1);
-assert.equal(run('rankingStatsForMatches(state.matches).get("p99").games'),0,'outsider award does not count as a game');
-assert.ok(run('playerAchievements("p99").find(b=>b.key==="bagre-1").unlocked'),'outsider Bagre unlocks the badge');
-run('renderMatchAwards()');
-assert.ok(node('#matchBolaMurcha').innerHTML.includes('<optgroup label="Fora da escalação"><option value="p99">Visitante</option>'));
-assert.equal(node('#matchBolaMurcha').value,'p99','saved outsider stays selected');
-node('#matchMvp').value = 'p99'; node('#matchMvp').dataset.outsider = ''; run('renderMatchAwards()');
-assert.equal(node('#matchMvp').value,'','unconfirmed outsider is not kept on re-render');
+assert.equal(run('currentRound().bolaMurchaPlayerId') ?? null,null,'round can close before voting');
+run('currentRound().bolaMurchaPlayerId="p99"');
+assert.equal(run('rankingStatsForMatches(state.matches).get("p99").bolaMurchas'),1,'historical awards are counted');
 // Renaming changes the active round's nine fixtures and champion name only.
 const savedScores = run('JSON.stringify(state.matches.map(m=>[m.scoreA,m.scoreB]))');
 run('updateTeamName("A","Equipe Quinha"); updateTeamName("B","Equipe Cão"); updateTeamName("C","Amarelo");');

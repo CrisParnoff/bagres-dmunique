@@ -127,7 +127,7 @@ function validState(state) {
       else { points[a]++; points[b]++; }
     }
     if (round.closed) {
-      if (games.length !== 9 || !["A","B","C"].includes(round.championTeam) || points[round.championTeam] !== Math.max(...Object.values(points)) || !id(round.mvpPlayerId) || !id(round.bolaMurchaPlayerId) || participants.some(playerId => !round.contributions[playerId])) return false;
+      if (games.length !== 9 || !["A","B","C"].includes(round.championTeam) || points[round.championTeam] !== Math.max(...Object.values(points)) || participants.some(playerId => !round.contributions[playerId])) return false;
       for (const key of ["A","B","C"]) for (const field of ["goals","assists"]) if (round.teams[key].reduce((sum,playerId) => sum + round.contributions[playerId][field],0) > goals[key]) return false;
     } else if (round.championTeam != null) return false;
   }
@@ -457,7 +457,7 @@ async function handleVoting(request,env,url) {
           const mvp=body.action==='awards'?body.mvp:mvpLeaders.length===1?mvpLeaders[0]:null;
           const bagre=body.action==='awards'?body.bagre:bagreLeaders.length===1?bagreLeaders[0]:null;
           if(body.action==='awards'&&(!mvpLeaders.includes(mvp)||!bagreLeaders.includes(bagre)))return json({error:'Escolha entre os mais votados de cada categoria. Atualize a parcial.'},409);
-          if(mvp&&bagre&&!applyVotingAwards(state,body.date,poll,mvp,bagre))return json({error:'Há mais de um registro neste dia. Defina os prêmios pela aba Partida.'},409);
+          if(mvp&&bagre&&!applyVotingAwards(state,body.date,poll,mvp,bagre))return json({error:'Há mais de um registro neste dia. É necessário ter um único resultado ou rodada encerrada para aplicar os prêmios.'},409);
           poll.status='closed';
         }
         if(body.action==='remove') {
