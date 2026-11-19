@@ -214,6 +214,7 @@ function render() {
   renderAnnualRanking();
   renderMonthlyHighlights();
   renderPlayerStats();
+  renderRivalry();
   renderMatches();
   renderHome();
   renderRound();
@@ -721,6 +722,44 @@ function renderKeeperChart(player,matches) {
   const x=i=>rows.length===1?width/2:45+i*(width-80)/(rows.length-1), y=n=>210-n/max*170;
   const date=value=>new Date(value+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
   target.innerHTML=`<p class="muted small">Gols sofridos por dia completo no gol. Menor é melhor; na rodada com três times, soma os seis confrontos.</p><div class="stats-chart-scroll"><svg class="keeper-chart" viewBox="0 0 ${width} 250" role="img" aria-label="Gols sofridos por data de ${escapeHtml(player.name)}"><line x1="45" y1="210" x2="${width-35}" y2="210" class="stats-chart-grid"/><polyline points="${rows.map((row,i)=>`${x(i)},${y(row.conceded)}`).join(' ')}" fill="none" stroke="#62baff" stroke-width="3"/>${rows.map((row,i)=>`<circle cx="${x(i)}" cy="${y(row.conceded)}" r="6" fill="#62baff"><title>${date(row.date)}: ${row.conceded} gols sofridos</title></circle><text x="${x(i)}" y="${y(row.conceded)-14}" text-anchor="middle" class="stats-chart-label">${row.conceded}</text><text x="${x(i)}" y="240" text-anchor="middle" class="stats-chart-label">${date(row.date)}</text>`).join('')}</svg></div><details class="stats-chart-data"><summary>Ver números por data</summary><div class="table-scroll"><table><thead><tr><th>Data</th><th>Gols sofridos no dia</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${new Date(row.date+'T12:00:00').toLocaleDateString('pt-BR')}</td><td>${row.conceded}</td></tr>`).join('')}</tbody></table></div></details>`;
+}
+
+function rivalryBreakdown(a,b) {
+  const days=[];
+  for(const m of state.matches) if(!m.roundId && Number.isFinite(m.scoreA) && Number.isFinite(m.scoreB))
+    days.push({date:m.date,teams:[m.teamA,m.teamB],winner:m.scoreA===m.scoreB?-1:m.scoreA>m.scoreB?0:1});
+  for(const r of state.rounds || []) if(r.closed && ["A","B","C"].includes(r.championTeam))
+    days.push({date:r.date,teams:[r.teams.A,r.teams.B,r.teams.C],winner:["A","B","C"].indexOf(r.championTeam)});
+  days.sort((x,y)=>x.date.localeCompare(y.date));
+  const result={versus:[0,0],draw:0,neither:0,together:[0,0,0],best:[0,0]};
+  const streak=[0,0];
+  for(const day of days){
+    const x=day.teams.findIndex(t=>t?.includes(a)),y=day.teams.findIndex(t=>t?.includes(b));
+    if(x<0||y<0)continue;
+    if(x===y){result.together[day.winner<0?1:day.winner===x?0:2]++;continue;}
+    const win=day.winner===x?0:day.winner===y?1:-1;
+    if(win>=0)result.versus[win]++;
+    else if(day.winner<0)result.draw++;
+    else result.neither++;
+    for(let i=0;i<2;i++){streak[i]=win===i?streak[i]+1:0;result.best[i]=Math.max(result.best[i],streak[i]);}
+  }
+  return result;
+}
+function renderRivalry(){
+  const controls=[$("#rivalryFirst"),$("#rivalrySecond")],out=$("#rivalryResult");
+  if(!out||controls.some(c=>!c))return;
+  const players=[...state.players].sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+  controls.forEach((c,i)=>{
+    const previous=c.value;
+    c.innerHTML='<option value="">Escolha um jogador</option>'+players.map(p=>'<option value="'+escapeHtml(p.id)+'">'+escapeHtml(p.name)+'</option>').join("");
+    if(players.some(p=>p.id===previous))c.value=previous;
+    c.disabled=players.length<2;
+  });
+  const [a,b]=controls.map(c=>players.find(p=>p.id===c.value));
+  if(!a||!b||a.id===b.id){out.textContent=a&&b?"Escolha dois jogadores diferentes.":"Escolha dois jogadores para comparar.";return;}
+  const r=rivalryBreakdown(a.id,b.id), names=[escapeHtml(a.name),escapeHtml(b.name)];
+  const total=r.versus[0]+r.versus[1]+r.draw+r.neither, together=r.together.reduce((x,y)=>x+y,0);
+  out.innerHTML='<div class="stats-group"><h4>Frente a frente · '+total+'</h4><p>'+names[0]+' <strong>'+r.versus[0]+' × '+r.versus[1]+'</strong> '+names[1]+'</p><p>Empates: '+r.draw+' · Terceiro time campeão: '+r.neither+'</p><p>Maior sequência de vitórias: '+names[0]+' '+r.best[0]+' · '+names[1]+' '+r.best[1]+'</p></div><div class="stats-group"><h4>No mesmo time · '+together+'</h4><p>'+r.together[0]+' vitórias · '+r.together[1]+' empates · '+r.together[2]+' derrotas</p></div>';
 }
 
 function renderPlayerStats() {
@@ -1834,6 +1873,8 @@ $("#importLocal").addEventListener("click", () => {
 });
 $("#annualRankingSort").addEventListener("change", renderAnnualRanking);
 $("#annualRankingYear").addEventListener("change", renderAnnualRanking);
+$("#rivalryFirst").addEventListener("change", renderRivalry);
+$("#rivalrySecond").addEventListener("change", renderRivalry);
 $("#playerStatsSelect").addEventListener("change", renderPlayerStats);
 $("#playerStatsYear").addEventListener("change", renderPlayerStats);
 $("#playerStatsPeriod").addEventListener("change", renderPlayerStats);

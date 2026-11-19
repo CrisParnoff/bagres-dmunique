@@ -427,6 +427,12 @@
         <div id="playerStatsGrid" class="card player-stats-grid"></div>
         <p id="playerStatsEmpty" class="empty-state hidden"></p>
         <p class="muted small stats-footnote">As médias de gols e assistências consideram apenas partidas na linha. Os totais de gols e assistências incluem também os feitos como goleiro. A média de gols sofridos usa apenas partidas como goleiro fixo; resultados e premiações contam em qualquer posição. Nas rodadas de três times, os nove jogos contam como uma rodada; o gráfico mostra os totais do dia após o fechamento.</p>
+        <section class="card player-achievements" aria-labelledby="rivalryTitle">
+          <h3 id="rivalryTitle">⚔️ Raio-X da rivalidade</h3>
+          <p class="muted small">Histórico completo. Com três times, vale o campeão do dia; se o terceiro time vencer, nenhum dos dois soma vitória.</p>
+          <div class="vote-fields"><label>Primeiro jogador<select id="rivalryFirst"></select></label><label>Segundo jogador<select id="rivalrySecond"></select></label></div>
+          <div id="rivalryResult" aria-live="polite"></div>
+        </section>
         <section id="playerAchievements" class="card player-achievements" aria-label="Conquistas do jogador"></section>
       </section>
       <section id="votacao" class="view"><div class="section-heading"><div><h2>Votação da rodada</h2><p class="muted">MVP e Bagre escolhidos por quem esteve em quadra.</p></div></div><div class="vote-toolbar"><label>Rodada<select id="votingDate"></select></label><button type="button" id="refreshVoting" class="button ghost">Atualizar parcial</button></div><p id="votingMessage" role="status" aria-live="polite"></p><div id="votingContent"></div></section>
