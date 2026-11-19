@@ -3191,3 +3191,20 @@ input[type="file"]::file-selector-button { border-radius: 7px; }
 #votingMessage{min-height:24px;color:var(--gold)}
 @media(max-width:760px){.hot-grid,.vote-fields,.vote-results-grid{grid-template-columns:1fr}.vote-form,.vote-admin,.vote-results{padding:18px}.vote-result>div{flex-wrap:wrap}}
 @media(max-width:760px){.tabs{grid-template-columns:repeat(4,minmax(0,1fr));}.tab{flex-direction:column;gap:3px;font-size:.69rem;}}
+
+/* Ballot: identify yourself, then choose one player in each category. */
+.vote-form:has(.ballot-hero){border-radius:20px;overflow:hidden}
+.ballot-hero{margin:-24px -24px 24px;padding:26px 24px;background:linear-gradient(110deg,#641529,#320d19 75%);border-bottom:1px solid #a24758}
+.ballot-hero>span{font-size:.73rem;font-weight:800;letter-spacing:.14em;color:var(--gold)}
+.ballot-hero h3{font-size:clamp(1.65rem,4vw,2.5rem);margin:6px 0}
+.ballot-hero p,.ballot-footer p{margin:0}.ballot-person{display:grid;gap:8px;max-width:360px}
+.ballot-person small,.ballot-choice small,.ballot-footer small{color:var(--muted)}
+.ballot-step{display:inline-grid;place-items:center;background:var(--gold);color:#291118;border-radius:50%;width:25px;height:25px;font-weight:800;margin-right:6px}
+.ballot-picks{margin:24px 0 0;padding:0;border:0;min-width:0}.ballot-picks legend{font-weight:800}
+.ballot-picks .vote-fields{grid-template-columns:repeat(2,minmax(0,1fr));margin:12px 0 20px}
+.ballot-choice{padding:16px;border:1px solid var(--line);border-radius:14px;background:#39101b}
+.ballot-craque{border-top:3px solid #d5a94f}.ballot-bagre{border-top:3px solid #e9748b}
+.ballot-icon{font-size:1.45rem}.ballot-choice select{width:100%;margin-top:6px}.ballot-picks:disabled .ballot-choice{opacity:.7}
+.ballot-footer{display:flex;gap:16px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.ballot-footer .button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:760px){.ballot-hero{margin:-18px -18px 20px;padding:20px 18px}.ballot-picks .vote-fields{grid-template-columns:1fr}.ballot-footer .button{width:100%}}

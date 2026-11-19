@@ -1817,7 +1817,13 @@ function renderVoting() {
   target.innerHTML=`<div class="vote-status"><strong>${labels[d.status]}</strong><span>${d.total} de ${d.participants.length} participantes votaram</span></div>
     ${adminMode?`<div class="card vote-admin"><h3>Controle da votação</h3><button type="button" class="button" data-vote-action="${d.status==='open'?'close':'open'}" ${votingBusy?'disabled':''}>${d.status==='open'?'Encerrar votação':d.status==='closed'?'Reabrir votação':'Abrir votação'}</button><p class="muted small">Ao encerrar, os líderes únicos viram MVP e Bagre da rodada. Em caso de empate, escolha abaixo para confirmar os dois prêmios. Isso substitui as escolhas anteriores dessa rodada.</p><h4>Participantes que já votaram</h4>${d.voted.length?d.participants.filter(p=>d.voted.includes(p.id)).map(p=>`<div class="vote-admin-row"><b>${escapeHtml(p.name)}</b><button type="button" class="mini-button danger" data-vote-remove="${escapeHtml(p.id)}" ${votingBusy?'disabled':''}>Remover voto e liberar novamente</button></div>`).join(''):'<p class="muted">Ninguém votou ainda.</p>'}</div>`:''}
     ${adminMode&&d.status==='closed'&&d.total?`<form id="voteAwardsForm" class="card vote-form"><h3>Definir MVP e Bagre</h3><p class="muted">${d.awards?'Prêmios registrados. Você pode confirmar outra escolha entre os empatados.':'Escolha entre os mais votados para resolver o empate e publicar os prêmios.'}</p><div class="vote-fields">${[['mvp','MVP'],['bagre','Bagre']].map(([key,label])=>`<label>${label}<select id="voteAward${key}" required ${votingBusy?'disabled':''}>${d.leaders[key].length>1?'<option value="">Escolha o vencedor do empate</option>':''}${d.participants.filter(p=>d.leaders[key].includes(p.id)).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('')}</select></label>`).join('')}</div><button class="button primary" type="submit" ${votingBusy?'disabled':''}>Confirmar prêmios da rodada</button></form>`:''}
-    ${d.status==='open'?`<form id="votingForm" class="card vote-form"><h3>Seu voto na rodada</h3><p class="muted">Identifique-se pelo seu próprio nome. Um envio por participante, com um voto para cada categoria. Você não pode votar em si mesmo. Se seu nome já foi usado por outra pessoa, procure o admin.</p><div class="vote-fields"><label>Quem é você?<select id="votingPerson" required ${votingBusy?'disabled':''}>${options(true)}</select></label><label>MVP da rodada<select id="votingMvp" required ${votingBusy?'disabled':''}>${options()}</select></label><label>Bagre da rodada<select id="votingBagre" required ${votingBusy?'disabled':''}>${options()}</select></label></div><button class="button primary" type="submit" ${votingBusy?'disabled':''}>${votingBusy?'Salvando…':'Confirmar meus votos'}</button><p class="muted small">As escolhas individuais não são exibidas. A identificação pelo nome depende da honestidade do grupo.</p></form>`:''}
+    ${d.status==='open'?`<form id="votingForm" class="card vote-form"><header class="ballot-hero"><span>VOTAÇÃO DA RODADA</span><h3>É hora de votar!</h3><p>Escolha quem brilhou e quem levou o Bagre.</p></header>
+    <div class="ballot-person"><label for="votingPerson"><span class="ballot-step">1</span> Quem é você?</label><select id="votingPerson" required ${votingBusy?'disabled':''}>${options(true)}</select><small>Nome já usado? Fale com o admin.</small></div>
+    <fieldset class="ballot-picks" id="ballotPicks" disabled><legend><span class="ballot-step">2</span> Escolha seus destaques</legend>
+      <div class="vote-fields"><label class="ballot-choice ballot-craque"><span class="ballot-icon" aria-hidden="true">⭐</span><strong>Craque da rodada</strong><small>Quem jogou mais?</small><select id="votingMvp" aria-label="Craque da rodada" required>${options()}</select></label>
+      <label class="ballot-choice ballot-bagre"><span class="ballot-icon" aria-hidden="true">🐟</span><strong>Bagre da rodada</strong><small>Quem teve a pior atuação?</small><select id="votingBagre" aria-label="Bagre da rodada" required>${options()}</select></label></div>
+    </fieldset>
+    <footer class="ballot-footer"><div><p id="ballotHint" role="status">Escolha seu nome para começar.</p><small>Seus votos individuais não são exibidos.</small></div><button id="ballotSubmit" class="button primary" type="submit" disabled>${votingBusy?'Salvando…':'Confirmar meus votos'}</button></footer></form>`:''}
     <div class="section-heading"><h3>${d.status==='closed'?'Resultado da votação':'Parcial da votação'}</h3><span class="muted small">Atualiza a cada 20 segundos nesta aba</span></div><div class="vote-results-grid">${partial('mvp','⭐ MVP')}${partial('bagre','🐟 Bagre')}</div>`;
   for(const id of Object.keys(selected)){const input=$('#'+id);if(input&&selected[id])input.value=selected[id];}
   $('#voteAwardsForm')?.addEventListener('submit',event=>{event.preventDefault();submitVoting({action:'awards',mvp:$('#voteAwardmvp').value,bagre:$('#voteAwardbagre').value});});
@@ -1830,8 +1836,17 @@ function renderVoting() {
     }
   };
   if (voterSelect) {
-    voterSelect.addEventListener('change', excludeSelf);
-    excludeSelf();
+    const mvp = $('#votingMvp'), bagre = $('#votingBagre');
+    const updateBallot = () => {
+      excludeSelf();
+      const identified = Boolean(voterSelect.value && !voterSelect.selectedOptions[0]?.disabled);
+      const picks = Number(Boolean(mvp.value)) + Number(Boolean(bagre.value));
+      $('#ballotPicks').disabled = votingBusy || !identified;
+      $('#ballotSubmit').disabled = votingBusy || !identified || picks !== 2;
+      $('#ballotHint').textContent = !identified ? 'Escolha seu nome para começar.' : picks === 2 ? 'Tudo pronto! Confirme seus votos.' : picks + ' de 2 escolhas feitas · Você não pode votar em si.';
+    };
+    for (const select of [voterSelect, mvp, bagre]) select.addEventListener('change', updateBallot);
+    updateBallot();
   }
   $('#votingForm')?.addEventListener('submit',event=>{event.preventDefault();submitVoting({action:'vote',voter:$('#votingPerson').value,mvp:$('#votingMvp').value,bagre:$('#votingBagre').value});});
   $$('[data-vote-action]').forEach(button=>button.addEventListener('click',()=>submitVoting({action:button.dataset.voteAction})));
