@@ -463,7 +463,7 @@ function renderHome() {
   $$("[data-home-month]").forEach(element => { element.textContent = `de ${monthName}`; });
   renderHomePodium("goals", "#homeGoals", "gol", "gols", monthName, stats);
   renderHomePodium("assists", "#homeAssists", "assistência", "assistências", monthName, stats);
-  renderHomePodium("goalkeeperAverage", "#homeKeepers", "gol sofrido/jogo", "gols sofridos/jogo", monthName, stats);
+  renderHomePodium("goalkeeperAverage", "#homeKeepers", "GS/jogo", "GS/jogo", monthName, stats);
   renderHomeMonth(monthName, monthlyMatches);
   renderHomeLineup();
   renderHomeResults();
