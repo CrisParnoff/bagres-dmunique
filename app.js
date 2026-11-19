@@ -465,7 +465,6 @@ function renderHome() {
   renderHomeLineup();
   renderHomeResults();
   renderHomeAchievements();
-  renderHotStreaks();
 }
 
 function currentMonthValue() {
@@ -1728,19 +1727,6 @@ function playerRunStats(playerId) {
   const current={win:0,unbeaten:0,goals:0,assists:0},best={win:0,unbeaten:0,goals:0,assists:0};
   for(const row of rows)for(const key of Object.keys(current)) {current[key]=row[key]?current[key]+1:0;best[key]=Math.max(best[key],current[key]);}
   return {current,best,lastDate:rows.at(-1)?.date,maxGoals:Math.max(0,...rows.map(r=>r.goals)),maxAssists:Math.max(0,...rows.map(r=>r.assists))};
-}
-function renderHotStreaks() {
-  const target=$('#homeHotStreaks');if(!target)return;
-  const records=state.players.map(player=>({player,...playerRunStats(player.id)}));
-  const lastDate=records.map(r=>r.lastDate).filter(Boolean).sort().at(-1);
-  const categories=[['unbeaten','🔥','rodadas sem perder'],['goals','⚽','rodadas seguidas marcando'],['assists','🎯','rodadas seguidas com assistência']];
-  const cards=categories.flatMap(([key,icon,label])=>{
-    const eligible=records.filter(r=>r.lastDate===lastDate&&r.current[key]>=2);
-    const top=Math.max(0,...eligible.map(r=>r.current[key]));
-    const leaders=eligible.filter(r=>r.current[key]===top);
-    return leaders.length?[`<article class="hot-card"><span class="hot-icon">${icon}</span><strong>${top}</strong><p>${label}</p><b>${leaders.map(r=>escapeHtml(r.player.name)).join(' · ')}</b></article>`]:[];
-  });
-  target.innerHTML=cards.length?cards.join(''):'<p class="muted">As sequências aparecem a partir de duas rodadas, entre quem participou do último jogo encerrado.</p>';
 }
 function personalRecordsMarkup(player) {
   const r=playerRunStats(player.id);
