@@ -1936,7 +1936,7 @@ body.admin-mode .tabs { grid-template-columns:repeat(7,minmax(0,1fr)); }
 /* Pódios do mês */
 .podiums {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3,minmax(0,1fr));
   gap: 18px 48px;
 }
 .podium { min-width: 0; }
@@ -3208,3 +3208,5 @@ input[type="file"]::file-selector-button { border-radius: 7px; }
 .ballot-footer{display:flex;gap:16px;justify-content:space-between;align-items:center;flex-wrap:wrap}
 .ballot-footer .button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:760px){.ballot-hero{margin:-18px -18px 20px;padding:20px 18px}.ballot-picks .vote-fields{grid-template-columns:1fr}.ballot-footer .button{width:100%}}
+
+.podium-keepers { --step: #21614e; --step-top: #4eaa88; }

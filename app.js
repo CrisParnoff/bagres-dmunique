@@ -307,14 +307,16 @@ function renderHomeAwards() {
 }
 
 function renderHomePodium(field, target, singular, plural, monthName, stats) {
+  const keepers = field === 'goalkeeperAverage';
+  const compare = (a,b) => keepers ? goalkeeperOrder(a.stats,b.stats) : b.value - a.value;
   const sorted = state.players
-    .map(player => ({ player, value: stats.get(player.id)?.[field] || 0 }))
-    .filter(entry => entry.value > 0)
-    .sort((a, b) => b.value - a.value || a.player.name.localeCompare(b.player.name, "pt-BR"));
+    .map(player => ({ player, stats: stats.get(player.id), value: keepers ? goalkeeperAverage(stats.get(player.id) || {}) : stats.get(player.id)?.[field] || 0 }))
+    .filter(entry => keepers ? entry.stats?.goalkeeperGames >= 1 : entry.value > 0)
+    .sort((a, b) => compare(a,b) || a.player.name.localeCompare(b.player.name, "pt-BR"));
   let rank = 0;
-  const ranked = sorted.map((entry, index) => { if (!index || entry.value !== sorted[index - 1].value) rank = index + 1; return { ...entry, rank }; }).filter(entry => entry.rank <= 3);
+  const ranked = sorted.map((entry, index) => { if (!index || compare(entry, sorted[index - 1]) !== 0) rank = index + 1; return { ...entry, rank }; }).filter(entry => entry.rank <= 3);
   if (!ranked.length) {
-    $(target).innerHTML = `<li class="podium-empty">${field === "goals" ? "Ninguém balançou a rede" : "Ninguém deu assistência"} em ${monthName} ainda.</li>`;
+    $(target).innerHTML = `<li class="podium-empty">${field === "goals" ? "Ninguém balançou a rede" : keepers ? "Nenhum goleiro com jogo registrado" : "Ninguém deu assistência"} em ${monthName} ainda.</li>`;
     return;
   }
   const steps = [0, 1, 2].map(slot => {
@@ -330,7 +332,7 @@ function renderHomePodium(field, target, singular, plural, monthName, stats) {
     </li>`;
   });
   const extra = ranked.length - 3;
-  $(target).innerHTML = steps.join("") + (extra > 0 ? `<li class="podium-more">E mais ${homeCount(extra, "empatado", "empatados")} com ${homeCount(ranked[2].value, singular, plural)}.</li>` : "");
+  $(target).innerHTML = steps.join("") + (extra > 0 ? `<li class="podium-more">E mais ${homeCount(extra, "empatado", "empatados")} com ${keepers ? `${ranked[2].value} ${plural}` : homeCount(ranked[2].value, singular, plural)}.</li>` : "");
 }
 
 function renderHomeLineup() {
@@ -461,6 +463,7 @@ function renderHome() {
   $$("[data-home-month]").forEach(element => { element.textContent = `de ${monthName}`; });
   renderHomePodium("goals", "#homeGoals", "gol", "gols", monthName, stats);
   renderHomePodium("assists", "#homeAssists", "assistência", "assistências", monthName, stats);
+  renderHomePodium("goalkeeperAverage", "#homeKeepers", "gol sofrido/jogo", "gols sofridos/jogo", monthName, stats);
   renderHomeMonth(monthName, monthlyMatches);
   renderHomeLineup();
   renderHomeResults();
